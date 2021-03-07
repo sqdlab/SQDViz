@@ -47,20 +47,20 @@ button = tkinter.Button(master=root, text="Quit", command=_quit)
 button.pack(side=tkinter.BOTTOM)
 
 i = 0
+f = h5py.File("swmr.h5", 'r', libver='latest', swmr=True)
+dset = f["data"]
 while True:
-    f = h5py.File("swmr.h5", 'r', libver='latest', swmr=True)
-    dset = f["data"]
-    while True:
-        dset.id.refresh()
-        shape = dset.shape
-        print( shape )
+    dset.id.refresh()
+    shape = dset.shape
+    # print( shape )
 
     #tkinter.mainloop()
     root.update_idletasks()
     root.update()
     i += 0.1
     ax.clear()
-    ax.plot(t, 2 * np.sin(2 * np.pi * t+i))
+    # ax.plot(t, 2 * np.sin(2 * np.pi * t+i))
+    ax.plot(dset[:,0])
     canvas.draw()
 # If you put root.destroy() here, it will cause an error if the window is
 # closed with the window manager.
