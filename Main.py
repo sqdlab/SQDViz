@@ -1,6 +1,6 @@
 import tkinter as tk
 
-import tkinter
+from tkinter import*
 
 from matplotlib.backends.backend_tkagg import (FigureCanvasTkAgg, NavigationToolbar2Tk)
 # Implement the default Matplotlib key bindings.
@@ -13,21 +13,38 @@ import h5py
 import time
 
 
-root = tkinter.Tk()
+root = tk.Tk()
 root.wm_title("Embedding in Tk")
+
+# panedwindow object 
+pw = PanedWindow(orient ='vertical', master=root) 
+pw.pack(fill=BOTH, expand=1)
 
 fig = Figure(figsize=(5, 4), dpi=100)
 t = np.arange(0, 3, .01)
 ax = fig.add_subplot(111)
 ax.plot(t, 2 * np.sin(2 * np.pi * t))
 
-canvas = FigureCanvasTkAgg(fig, master=root)  # A tk.DrawingArea.
-canvas.draw()
-canvas.get_tk_widget().pack(side=tkinter.TOP, fill=tkinter.BOTH, expand=1)
+# canvas = FigureCanvasTkAgg(fig, master=pw)  # A tk.DrawingArea.
+# canvas.draw()
+# canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=1)
+# # This will add button widget to the panedwindow 
+# pw.add(canvas.get_tk_widget())
 
-toolbar = NavigationToolbar2Tk(canvas, root)
+canvas_frame = Frame(root)
+canvas = FigureCanvasTkAgg(fig, master = canvas_frame)
+canvas.draw()
+canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=1)
+toolbar = NavigationToolbar2Tk(canvas, canvas_frame)
 toolbar.update()
-canvas.get_tk_widget().pack(side=tkinter.TOP, fill=tkinter.BOTH, expand=1)
+toolbar.pack_configure(expand=True)
+pw.add(canvas_frame)
+
+
+
+# toolbar = NavigationToolbar2Tk(canvas, root)
+# toolbar.update()
+# canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=1)
 
 
 def on_key_press(event):
@@ -44,8 +61,9 @@ def _quit():
                     # Fatal Python Error: PyEval_RestoreThread: NULL tstate
 
 
-button = tkinter.Button(master=root, text="Quit", command=_quit)
-button.pack(side=tkinter.BOTTOM)
+button = tk.Button(master=root, text="Quit", command=_quit)
+button.pack(side=tk.BOTTOM)
+pw.add(button)
 
 def get_plot_data(slice_vars):
     global dset
@@ -57,13 +75,10 @@ def get_plot_data(slice_vars):
 from multiprocessing.pool import ThreadPool
 pool = ThreadPool(processes=1)
 
-async_result = pool.apply_async(get_plot_data, ('params',)) # tuple of args
-
-# do some other stuff in the main process
-
 i = 0
 f = h5py.File("swmr.h5", 'r', libver='latest', swmr=True)
 dset = f["data"]
+async_result = pool.apply_async(get_plot_data, ('params',)) # tuple of args
 while True:
     if async_result.ready():
         return_val = async_result.get()  # get the return value from your function.
