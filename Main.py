@@ -10,6 +10,7 @@ from matplotlib.figure import Figure
 import numpy as np
 
 import h5py
+import time
 
 
 root = tkinter.Tk()
@@ -46,21 +47,35 @@ def _quit():
 button = tkinter.Button(master=root, text="Quit", command=_quit)
 button.pack(side=tkinter.BOTTOM)
 
+def get_plot_data(slice_vars):
+    global dset
+    dset.id.refresh()
+    #Simulate lag...
+    time.sleep(5)
+    return dset[:,0]
+
+from multiprocessing.pool import ThreadPool
+pool = ThreadPool(processes=1)
+
+async_result = pool.apply_async(get_plot_data, ('params',)) # tuple of args
+
+# do some other stuff in the main process
+
 i = 0
 f = h5py.File("swmr.h5", 'r', libver='latest', swmr=True)
 dset = f["data"]
 while True:
-    dset.id.refresh()
-    shape = dset.shape
-    # print( shape )
+    if async_result.ready():
+        return_val = async_result.get()  # get the return value from your function.
+        i += 0.1
+        ax.clear()
+        # ax.plot(t, 2 * np.sin(2 * np.pi * t+i))
+        ax.plot(return_val)
+        canvas.draw()
+        async_result = pool.apply_async(get_plot_data, ('params',)) # tuple of args
 
     #tkinter.mainloop()
     root.update_idletasks()
     root.update()
-    i += 0.1
-    ax.clear()
-    # ax.plot(t, 2 * np.sin(2 * np.pi * t+i))
-    ax.plot(dset[:,0])
-    canvas.draw()
 # If you put root.destroy() here, it will cause an error if the window is
 # closed with the window manager.
