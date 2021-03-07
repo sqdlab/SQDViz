@@ -9,6 +9,8 @@ from matplotlib.figure import Figure
 
 import numpy as np
 
+import h5py
+
 
 root = tkinter.Tk()
 root.wm_title("Embedding in Tk")
@@ -46,11 +48,18 @@ button.pack(side=tkinter.BOTTOM)
 
 i = 0
 while True:
+    f = h5py.File("swmr.h5", 'r', libver='latest', swmr=True)
+    dset = f["data"]
+    while True:
+        dset.id.refresh()
+        shape = dset.shape
+        print( shape )
+
     #tkinter.mainloop()
     root.update_idletasks()
     root.update()
-    i += 0.01
-    
+    i += 0.1
+    ax.clear()
     ax.plot(t, 2 * np.sin(2 * np.pi * t+i))
     canvas.draw()
 # If you put root.destroy() here, it will cause an error if the window is
