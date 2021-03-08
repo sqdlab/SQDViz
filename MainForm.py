@@ -19,18 +19,18 @@ class MainForm:
 
         self.frame_LHS = Frame(master=self.root)
 
-        #Left-hand side (plots and the plot-selection)
+        ###################
+        #MAIN PLOT DISPLAY#
+        ###################
         self.pw_plots_main = PanedWindow(orient ='vertical', master=self.frame_LHS)
         self.plot_main = self._generate_plot_frame()
         self.pw_plots_main.add(self.plot_main['frame'],stretch='always')
         self.plot_slice = self._generate_plot_frame()
         self.pw_plots_main.add(self.plot_slice['frame'])
-        # button = tk.Button(master=self.root, text="Quit", command=self._event_quit)
-        # button.pack(side=tk.BOTTOM)
-        # pw_LHS.add(button)
-
+        #
         self.pw_plots_main.grid(row=0,column=0,sticky='nsew')
-        
+        ###################
+
         #########################
         #PLOT SELECTION CONTROLS#
         #########################
@@ -77,13 +77,12 @@ class MainForm:
         frm_lstbxes.grid(row=0,column=1,sticky='se')
         #######################################
         #
-
         self.frame_plot_sel.grid(row=1,column=0,sticky='sew')
+        #########################
 
         self.frame_LHS.rowconfigure(0, weight=1)
         self.frame_LHS.rowconfigure(1, weight=0)
         self.frame_LHS.columnconfigure(0, weight=1)
-
 
         self.frame_LHS.pack(fill=BOTH, expand=1)
 
@@ -141,18 +140,20 @@ class MainForm:
 
         return {'fig':fig, 'ax':ax, 'frame':canvas_frame, 'canvas':canvas, 'toolbar':toolbar}
 
+
     def _event_plotsel_changed(self):
         if self.plot_dim_type.get() == 1:
             #1D Plot
             self.lstbx_y.disable()
+            #Move the sash in the paned-window to hide the 1D slices
             cur_height = self.pw_plots_main.winfo_height()
             self.pw_plots_main.sash_place(0, 1, int(cur_height-1))
         else:
             #2D Plot
             self.lstbx_y.enable()
+            #Move the sash in the paned-window to show the 1D slices
             cur_height = self.pw_plots_main.winfo_height()
             self.pw_plots_main.sash_place(0, 1, int(cur_height*0.8))
-
 
     def _event_form_on_key_press(self,event):
         print("you pressed {}".format(event.key))
