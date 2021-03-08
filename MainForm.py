@@ -21,9 +21,9 @@ class MainForm:
         pw_LHS = PanedWindow(orient ='vertical', master=self.root) 
         pw_LHS.pack(fill=BOTH, expand=1)
         self.plot_main = self._generate_plot_frame()
-        pw_LHS.add(self.plot_main['frame'])
-        self.plot_slice = self._generate_plot_frame()
-        pw_LHS.add(self.plot_main['frame'])
+        pw_LHS.add(self.plot_main['frame'],stretch='always')
+        # self.plot_slice = self._generate_plot_frame()
+        # pw_LHS.add(self.plot_slice['frame'])
         button = tk.Button(master=self.root, text="Quit", command=self._event_quit)
         button.pack(side=tk.BOTTOM)
         pw_LHS.add(button)
@@ -64,18 +64,19 @@ class MainForm:
         return self.dset[:,0]
 
     def _generate_plot_frame(self):
-        fig = Figure(figsize=(5, 4), dpi=100)
+        fig = Figure()
         t = np.arange(0, 3, .01)
         ax = fig.gca() #fig.add_subplot(111)
         ax.plot(t, 2 * np.sin(2 * np.pi * t))
 
-        canvas_frame = Frame(self.root)
+        canvas_frame = Frame(master=self.root)
+
         canvas = FigureCanvasTkAgg(fig, master = canvas_frame)
-        canvas.draw()
-        canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=1)
+        # canvas.draw()
         toolbar = NavigationToolbar2Tk(canvas, canvas_frame)
+        canvas.get_tk_widget().pack(side=tk.BOTTOM, fill=tk.BOTH, expand=1,anchor=tk.N)
         toolbar.update()
-        toolbar.pack_configure(expand=True)
+        toolbar.pack_configure(side=tk.TOP, expand=True)
 
         return {'fig':fig, 'ax':ax, 'frame':canvas_frame, 'canvas':canvas, 'toolbar':toolbar}
 
