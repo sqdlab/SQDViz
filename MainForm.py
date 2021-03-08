@@ -7,10 +7,9 @@ from matplotlib.backend_bases import key_press_handler
 from matplotlib.figure import Figure
 
 import numpy as np
-import h5py
 from multiprocessing.pool import ThreadPool
 
-import time
+from DataExtractorH5single import*
 
 class MainForm:
     def __init__(self):
@@ -90,21 +89,25 @@ class MainForm:
 
         self.data_thread_pool = ThreadPool(processes=1)
 
-        f = h5py.File("swmr.h5", 'r', libver='latest', swmr=True)
-        self.dset = f["data"]
-        self.async_result = self.data_thread_pool.apply_async(self.get_plot_data, ('params',)) # tuple of args
+        self.data_extractor = DataExtractorH5single("swmr.h5", self.data_thread_pool)
+
+        indep_vars = self.data_extractor.get_independent_vars()
+        self.lstbx_x.update_vals(indep_vars)
+        self.lstbx_y.update_vals(indep_vars)
+
+        self.data_extractor.fetch_data({'slice_vars':["freq"]})
 
     def main_loop(self):
         i = 0
         while True:
-            if self.async_result.ready():
-                return_val = self.async_result.get()  # get the return value from your function.
+            if self.data_extractor.data_ready():
+                return_val = self.data_extractor.get_data()  # get the return value from your function.
                 i += 0.1
                 self.plot_main['ax'].clear()
                 # ax.plot(t, 2 * np.sin(2 * np.pi * t+i))
                 self.plot_main['ax'].plot(return_val)
                 self.plot_main['canvas'].draw()
-                self.async_result = self.data_thread_pool.apply_async(self.get_plot_data, ('params',)) # tuple of args
+                self.data_extractor.fetch_data({'slice_vars':["freq"]})
 
             #tkinter.mainloop()
             self.root.update_idletasks()
@@ -168,7 +171,7 @@ class ListBoxScrollBar:
     def __init__(self, parent_ui_element):
         self.frame = Frame(master=parent_ui_element)
 
-        self.listbox = Listbox(self.frame)
+        self.listbox = Listbox(self.frame, exportselection=0)
         self.listbox.pack(side = LEFT, fill = BOTH)
         self.scrollbar = Scrollbar(self.frame)
         self.scrollbar.pack(side = RIGHT, fill = BOTH)
@@ -178,6 +181,11 @@ class ListBoxScrollBar:
         
         self.listbox.config(yscrollcommand = self.scrollbar.set)
         self.scrollbar.config(command = self.listbox.yview)
+
+    def update_vals(self, list_vals):
+        self.listbox.delete(0,'end')
+        for values in list_vals: 
+            self.listbox.insert(END, values)
 
     def enable(self):
         self.listbox.configure(state='normal')
