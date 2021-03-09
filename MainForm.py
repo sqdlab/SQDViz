@@ -98,30 +98,35 @@ class MainForm:
         self.data_extractor.fetch_data({'slice_vars':["freq"]})
 
     def main_loop(self):
-        i = 0
         while True:
             if self.data_extractor.data_ready():
-                return_val = self.data_extractor.get_data()  # get the return value from your function.
-                i += 0.1
-                self.plot_main['ax'].clear()
-                # ax.plot(t, 2 * np.sin(2 * np.pi * t+i))
-                self.plot_main['ax'].plot(return_val)
-                self.plot_main['canvas'].draw()
-                self.data_extractor.fetch_data({'slice_vars':["freq"]})
+                new_data = self.data_extractor.get_data()
+                if len(new_data[0]) == 1:
+                    self.plot_main['ax'].clear()
+                    # ax.plot(t, 2 * np.sin(2 * np.pi * t+i))
+                    self.plot_main['ax'].plot(new_data[0][0], new_data[1])
+                    self.plot_main['canvas'].draw()
+                else:
+                    self.plot_main['ax'].clear()
+                    # ax.plot(t, 2 * np.sin(2 * np.pi * t+i))
+                    self.plot_main['ax'].pcolor(new_data[0][0], new_data[0][1], new_data[1].T)
+                    self.plot_main['canvas'].draw()
+
+            if not self.data_extractor.isFetching:
+                #Setup new request...
+                if self.plot_dim_type.get() == 1:
+                    self.data_extractor.fetch_data({'slice_vars':[self.lstbx_x.get_sel_val()]})
+                else:
+                    xVar = self.lstbx_x.get_sel_val()
+                    yVar = self.lstbx_y.get_sel_val()
+                    if xVar != yVar:
+                        self.data_extractor.fetch_data({'slice_vars':[xVar, yVar]})
 
             #tkinter.mainloop()
             self.root.update_idletasks()
             self.root.update()
         # If you put root.destroy() here, it will cause an error if the window is
         # closed with the window manager.
-
-    
-    def get_plot_data(self,slice_vars):
-        global dset
-        self.dset.id.refresh()
-        #Simulate lag...
-        time.sleep(5)
-        return self.dset[:,0]
 
     def _generate_plot_frame(self):
         fig = Figure(figsize=(1,1))
@@ -184,8 +189,11 @@ class ListBoxScrollBar:
 
     def update_vals(self, list_vals):
         self.listbox.delete(0,'end')
-        for values in list_vals: 
+        for values in list_vals:
             self.listbox.insert(END, values)
+        #Select first element by default...
+        self.listbox.select_set(0)
+        self.listbox.event_generate("<<ListboxSelect>>")
 
     def enable(self):
         self.listbox.configure(state='normal')
@@ -193,3 +201,7 @@ class ListBoxScrollBar:
     def disable(self):
         self.listbox.configure(state='disabled')
         # self.scrollbar.configure(state='disabled')
+
+    def get_sel_val(self):
+        values = [self.listbox.get(m) for m in self.listbox.curselection()]
+        return values[0]
