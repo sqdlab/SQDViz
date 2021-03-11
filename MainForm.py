@@ -3,8 +3,9 @@ from tkinter import*
 
 from matplotlib.backends.backend_tkagg import (FigureCanvasTkAgg, NavigationToolbar2Tk)
 # Implement the default Matplotlib key bindings.
-from matplotlib.backend_bases import key_press_handler
+from matplotlib.backend_bases import (key_press_handler, MouseButton)
 from matplotlib.figure import Figure
+from matplotlib.widgets import Cursor
 
 import numpy as np
 from multiprocessing.pool import ThreadPool
@@ -16,20 +17,25 @@ class MainForm:
         self.root = tk.Tk()
         self.root.wm_title("SQDviz - Data visualisation tool")
 
+        ###################
+        #    LHS FRAME
+        ###################
         self.frame_LHS = Frame(master=self.root)
-
+        #
+        #
         ###################
         #MAIN PLOT DISPLAY#
         ###################
         self.pw_plots_main = PanedWindow(orient ='vertical', master=self.frame_LHS)
-        self.plot_main = self._generate_plot_frame()
-        self.pw_plots_main.add(self.plot_main['frame'],stretch='always')
-        self.plot_slice = self._generate_plot_frame()
-        self.pw_plots_main.add(self.plot_slice['frame'])
+        self.plot_main = PlotFrame(self.root)
+        self.pw_plots_main.add(self.plot_main.Frame,stretch='always')
+        self.plot_slice = PlotFrame(self.root)
+        self.pw_plots_main.add(self.plot_slice.Frame)
         #
         self.pw_plots_main.grid(row=0,column=0,sticky='nsew')
         ###################
-
+        #
+        #
         #########################
         #PLOT SELECTION CONTROLS#
         #########################
@@ -77,40 +83,54 @@ class MainForm:
         #######################################
         #
         self.frame_plot_sel.grid(row=1,column=0,sticky='sew')
-        #########################
-
         self.frame_LHS.rowconfigure(0, weight=1)
         self.frame_LHS.rowconfigure(1, weight=0)
         self.frame_LHS.columnconfigure(0, weight=1)
+        #########################
 
+
+        ###################
+        #    RHS FRAME
+        ###################
+        self.frame_RHS = Frame(master=self.root)
+        #
+        ###################
+        #MAIN PLOT DISPLAY#
+        ###################
+        #self.
+
+        self.pw_main_LR_UI = PanedWindow(orient ='horizontal', master=self.root)
+        self.pw_main_LR_UI.add(self.frame_LHS,stretch='always')
+        self.pw_main_LR_UI.add(self.frame_RHS,stretch='always')
         self.frame_LHS.pack(fill=BOTH, expand=1)
+        self.frame_RHS.pack(fill=BOTH, expand=1)
 
-        self.plot_main['canvas'].mpl_connect("key_press_event", self._event_form_on_key_press)
+        self.plot_main.Canvas.mpl_connect("key_press_event", self._event_form_on_key_press)
+        self.plot_main.add_cursor()
 
         self.data_thread_pool = ThreadPool(processes=1)
-
         self.data_extractor = DataExtractorH5single("swmr.h5", self.data_thread_pool)
-
+        #
         indep_vars = self.data_extractor.get_independent_vars()
         self.lstbx_x.update_vals(indep_vars)
         self.lstbx_y.update_vals(indep_vars)
-
-        self.data_extractor.fetch_data({'slice_vars':["freq"]})
 
     def main_loop(self):
         while True:
             if self.data_extractor.data_ready():
                 new_data = self.data_extractor.get_data()
                 if len(new_data[0]) == 1:
-                    self.plot_main['ax'].clear()
+                    self.plot_main.ax.clear()
                     # ax.plot(t, 2 * np.sin(2 * np.pi * t+i))
-                    self.plot_main['ax'].plot(new_data[0][0], new_data[1])
-                    self.plot_main['canvas'].draw()
+                    self.plot_main.ax.plot(new_data[0][0], new_data[1])
+                    self.plot_main.update()
                 else:
-                    self.plot_main['ax'].clear()
+                    self.plot_main.ax.clear()
                     # ax.plot(t, 2 * np.sin(2 * np.pi * t+i))
-                    self.plot_main['ax'].pcolor(new_data[0][0], new_data[0][1], new_data[1].T)
-                    self.plot_main['canvas'].draw()
+                    self.plot_main.ax.pcolor(new_data[0][0], new_data[0][1], new_data[1].T)
+                    self.plot_main.update()
+            
+            self.plot_main.Canvas.draw()
 
             if not self.data_extractor.isFetching:
                 #Setup new request...
@@ -128,27 +148,6 @@ class MainForm:
         # If you put root.destroy() here, it will cause an error if the window is
         # closed with the window manager.
 
-    def _generate_plot_frame(self):
-        fig = Figure(figsize=(1,1))
-        t = np.arange(0, 3, .01)
-        ax = fig.gca() #fig.add_subplot(111)
-        # ax.plot(t, 2 * np.sin(2 * np.pi * t))
-
-        canvas_frame = Frame(master=self.root)
-
-        canvas = FigureCanvasTkAgg(fig, master = canvas_frame)
-        toolbar = NavigationToolbar2Tk(canvas, canvas_frame)
-        toolbar.update()
-        toolbar.grid_configure(row=0,column=0,sticky='nsew')
-        canvas.get_tk_widget().grid(row=1,column=0,sticky='nsew')
-
-        canvas_frame.rowconfigure(0, weight=0)
-        canvas_frame.rowconfigure(1, weight=1)
-        canvas_frame.columnconfigure(0, weight=1)
-
-        return {'fig':fig, 'ax':ax, 'frame':canvas_frame, 'canvas':canvas, 'toolbar':toolbar}
-
-
     def _event_plotsel_changed(self):
         if self.plot_dim_type.get() == 1:
             #1D Plot
@@ -165,7 +164,7 @@ class MainForm:
 
     def _event_form_on_key_press(self,event):
         print("you pressed {}".format(event.key))
-        key_press_handler(event, self.plot_main['canvas'], self.plot_main['toolbar'])
+        key_press_handler(event, self.plot_main.Canvas, self.plot_main.ToolBar)
 
     def _event_quit():
         root.quit()     # stops mainloop
@@ -205,3 +204,103 @@ class ListBoxScrollBar:
     def get_sel_val(self):
         values = [self.listbox.get(m) for m in self.listbox.curselection()]
         return values[0]
+
+class PlotFrame:
+    def __init__(self, root_ui):
+        self.fig = Figure(figsize=(1,1))
+        t = np.arange(0, 3, .01)
+        self.ax = self.fig.gca() #fig.add_subplot(111)
+        # ax.plot(t, 2 * np.sin(2 * np.pi * t))
+
+        self.Frame = Frame(master=root_ui)
+
+        self.Canvas = FigureCanvasTkAgg(self.fig, master = self.Frame)
+        self.ToolBar = NavigationToolbar2Tk(self.Canvas, self.Frame)
+        self.ToolBar.update()
+        self.ToolBar.grid_configure(row=0,column=0,sticky='nsew')
+        self.Canvas.get_tk_widget().grid(row=1,column=0,sticky='nsew')
+
+        self.Frame.rowconfigure(0, weight=0)
+        self.Frame.rowconfigure(1, weight=1)
+        self.Frame.columnconfigure(0, weight=1)
+
+        self.Cursors = []
+
+    def add_cursor(self):
+        new_curse = PlotCursorDrag(self, 'red')
+        self.Cursors += [new_curse]
+        return new_curse
+
+    def update(self):
+        for cur_curse in self.Cursors:
+            cur_curse.update()
+
+    def get_axis_size_px(self):
+        bbox = self.ax.get_window_extent().transformed(self.fig.dpi_scale_trans.inverted())
+        width, height = bbox.width, bbox.height
+        width *= self.fig.dpi
+        height *= self.fig.dpi
+        return (width, height)
+
+class PlotCursorDrag(object):
+    def __init__(self, pltFrame, colour):
+        #Inspired by: https://stackoverflow.com/questions/35414003/python-how-can-i-display-cursor-on-all-axes-vertically-but-only-on-horizontall
+        self.ax = pltFrame.ax
+        self.pltFrame = pltFrame
+        
+        self.colour = colour
+        
+        xlimts = self.ax.get_xlim()
+        ylimts = self.ax.get_ylim()
+        self.lx = self.ax.axvline(ymin=ylimts[0],ymax=ylimts[1],color=colour)
+        self.ly = self.ax.axhline(xmin=xlimts[0],xmax=xlimts[1],color=colour)
+        self.cur_coord = (0.5*(xlimts[0]+xlimts[1]), 0.5*(ylimts[0]+ylimts[1]))
+        self.lx.set_xdata(self.cur_coord[0])
+        self.ly.set_ydata(self.cur_coord[1])
+        self.lx.set_visible(True)
+        self.ly.set_visible(True)
+
+        self.pltFrame.Canvas.mpl_connect('motion_notify_event', self.display_cursor)
+        #canvas.mpl_connect('axes_leave_event', cc.hide_y)
+
+    def update(self):
+        xlimts = self.ax.get_xlim()
+        ylimts = self.ax.get_ylim()
+        self.lx = self.ax.axvline(ymin=ylimts[0],ymax=ylimts[1],color=self.colour)
+        self.ly = self.ax.axhline(xmin=xlimts[0],xmax=xlimts[1],color=self.colour)
+
+        #Reset coordinate if cursor falls outside the possibly new axis
+        if self.cur_coord[0] < xlimts[0] or self.cur_coord[0] > xlimts[1] or self.cur_coord[1] < ylimts[0] or self.cur_coord[1] > ylimts[1]:
+            self.cur_coord = (0.5*(xlimts[0]+xlimts[1]), 0.5*(ylimts[0]+ylimts[1]))
+        self.lx.set_xdata(self.cur_coord[0])
+        self.ly.set_ydata(self.cur_coord[1])
+
+    def display_cursor(self, event):
+        if event.inaxes and event.button == MouseButton.LEFT:
+            #Adjust threshold appropriately...
+            threshold_x, threshold_y = 10, 10
+
+            mouse_coord = (event.xdata, event.ydata)           
+            cur_ax_size = self.pltFrame.get_axis_size_px()
+            xlimts = self.ax.get_xlim()
+            ylimts = self.ax.get_ylim()
+            mouse_px_x = (mouse_coord[0]-xlimts[0])/(xlimts[1]-xlimts[0])*cur_ax_size[0]
+            mouse_px_y = (mouse_coord[1]-ylimts[0])/(ylimts[1]-ylimts[0])*cur_ax_size[1]
+            coord_px_x = (self.cur_coord[0]-xlimts[0])/(xlimts[1]-xlimts[0])*cur_ax_size[0]
+            coord_px_y = (self.cur_coord[1]-ylimts[0])/(ylimts[1]-ylimts[0])*cur_ax_size[1]
+
+            thresh_x = abs(coord_px_x-mouse_px_x) < threshold_x
+            thresh_y = abs(coord_px_y-mouse_px_y) < threshold_y
+
+            if thresh_x and thresh_y:
+                self.cur_coord = (event.xdata, event.ydata)
+            elif thresh_x:
+                self.cur_coord = (event.xdata, self.cur_coord[1])
+            elif thresh_y:
+                self.cur_coord = (self.cur_coord[0], event.ydata)
+            else:
+                return
+
+            self.lx.set_xdata(self.cur_coord[0])
+            self.ly.set_ydata(self.cur_coord[1])
+        # plt.draw()
