@@ -17,16 +17,24 @@ class MainForm:
         self.root = tk.Tk()
         self.root.wm_title("SQDviz - Data visualisation tool")
 
+        self.pw_main_LR_UI = PanedWindow(orient =tk.HORIZONTAL, master=self.root)
+        self.frame_LHS = Frame(master=self.pw_main_LR_UI)
+        self.frame_RHS = Frame(master=self.pw_main_LR_UI)
+        self.pw_main_LR_UI.add(self.frame_LHS,stretch='always')
+        self.pw_main_LR_UI.add(self.frame_RHS,stretch='always')
+        # self.frame_LHS.pack(fill=BOTH, expand=1)
+        # self.frame_RHS.pack(fill=BOTH, expand=1)
+        self.pw_main_LR_UI.pack(fill=BOTH, expand=1)
+
         ###################
         #    LHS FRAME
         ###################
-        self.frame_LHS = Frame(master=self.root)
         #
         #
         ###################
         #MAIN PLOT DISPLAY#
         ###################
-        self.pw_plots_main = PanedWindow(orient ='vertical', master=self.frame_LHS)
+        self.pw_plots_main = PanedWindow(orient =tk.VERTICAL, master=self.frame_LHS)
         self.plot_main = PlotFrame(self.root)
         self.pw_plots_main.add(self.plot_main.Frame,stretch='always')
         self.plot_slice = PlotFrame(self.root)
@@ -92,21 +100,53 @@ class MainForm:
         ###################
         #    RHS FRAME
         ###################
-        self.frame_RHS = Frame(master=self.root)
+        #
+        ################
+        #CURSOR DISPLAY#
+        ################
+        self.frame_cursors = LabelFrame(master=self.frame_RHS, text = "Cursors")
+        #
+        #################
+        #CURSOR CUT PLOTS
+        self.frame_cursor_plots = Frame(master=self.frame_cursors)
+        self.plot_cursorX = PlotFrame(self.frame_cursor_plots)
+        self.plot_cursorY = PlotFrame(self.frame_cursor_plots)
+        self.plot_cursorX.Frame.grid(row=0, column=0, sticky="news")
+        self.plot_cursorY.Frame.grid(row=0, column=1, sticky="news")
+        self.frame_cursor_plots.rowconfigure(0, weight=1)
+        self.frame_cursor_plots.columnconfigure(0, weight=1)
+        self.frame_cursor_plots.columnconfigure(1, weight=1)
+        #
+        self.frame_cursor_plots.grid(row=0, column=0, columnspan=2, padx=10, pady=2, sticky="news")
+        #
+        ###############
+        #CURSOR LISTBOX
+        self.lstbx_cursors = ListBoxScrollBar(self.frame_cursors)
+        self.lstbx_cursors.frame.grid(row=1, column=0, columnspan=2, padx=10, pady=2, sticky="ews")
+        ################
         #
         ###################
-        #MAIN PLOT DISPLAY#
+        #ADD/REMOVE BUTTONS
+        self.btn_cursor_add = tk.Button(master=self.frame_cursors, text ="Add cursor", command = lambda: self.plot_main.add_cursor())
+        self.btn_cursor_add.grid(row=2, column=0)
+        self.btn_cursor_add = tk.Button(master=self.frame_cursors, text ="Delete cursor", command = lambda: self.plot_main.Cursors.pop(self.lstbx_cursors.get_sel_val(True)))
+        self.btn_cursor_add.grid(row=2, column=1)
         ###################
-        #self.
+        #
+        self.frame_cursors.rowconfigure(0, weight=1)
+        self.frame_cursors.rowconfigure(1, weight=0)
+        self.frame_cursors.rowconfigure(2, weight=0)
+        self.frame_cursors.columnconfigure(0, weight=1)
+        self.frame_cursors.columnconfigure(1, weight=1)
+        self.frame_cursors.pack(fill=BOTH, expand=1)
+        #
+        self.frame_RHS.rowconfigure(0, weight=1)
+        self.frame_RHS.rowconfigure(1, weight=1)
+        self.frame_RHS.columnconfigure(0, weight=1)
 
-        self.pw_main_LR_UI = PanedWindow(orient ='horizontal', master=self.root)
-        self.pw_main_LR_UI.add(self.frame_LHS,stretch='always')
-        self.pw_main_LR_UI.add(self.frame_RHS,stretch='always')
-        self.frame_LHS.pack(fill=BOTH, expand=1)
-        self.frame_RHS.pack(fill=BOTH, expand=1)
 
         self.plot_main.Canvas.mpl_connect("key_press_event", self._event_form_on_key_press)
-        self.plot_main.add_cursor()
+        self.plot_main.add_cursor('red')
 
         self.data_thread_pool = ThreadPool(processes=1)
         self.data_extractor = DataExtractorH5single("swmr.h5", self.data_thread_pool)
@@ -120,20 +160,17 @@ class MainForm:
             if self.data_extractor.data_ready():
                 new_data = self.data_extractor.get_data()
                 if len(new_data[0]) == 1:
-                    self.plot_main.ax.clear()
-                    # ax.plot(t, 2 * np.sin(2 * np.pi * t+i))
-                    self.plot_main.ax.plot(new_data[0][0], new_data[1])
-                    self.plot_main.update()
+                    self.plot_main.plot_data_1D(new_data[0][0], new_data[1])
                 else:
-                    self.plot_main.ax.clear()
-                    # ax.plot(t, 2 * np.sin(2 * np.pi * t+i))
-                    self.plot_main.ax.pcolor(new_data[0][0], new_data[0][1], new_data[1].T)
-                    self.plot_main.update()
+                    self.plot_main.plot_data_2D(new_data[0][0], new_data[0][1], new_data[1].T)
             
             self.plot_main.Canvas.draw()
+            self.plot_main.pop_plots_with_cursor_cuts(self.plot_cursorX, self.plot_cursorY, self.lstbx_cursors)
+            self.plot_cursorX.Canvas.draw()
+            self.plot_cursorY.Canvas.draw()
 
+            #Setup new request if no new data is being fetched
             if not self.data_extractor.isFetching:
-                #Setup new request...
                 if self.plot_dim_type.get() == 1:
                     self.data_extractor.fetch_data({'slice_vars':[self.lstbx_x.get_sel_val()]})
                 else:
@@ -176,9 +213,12 @@ class ListBoxScrollBar:
         self.frame = Frame(master=parent_ui_element)
 
         self.listbox = Listbox(self.frame, exportselection=0)
-        self.listbox.pack(side = LEFT, fill = BOTH)
+        self.listbox.grid(row=0, column=0, sticky="news")
         self.scrollbar = Scrollbar(self.frame)
-        self.scrollbar.pack(side = RIGHT, fill = BOTH)
+        self.scrollbar.grid(row=0, column=1, sticky="nes")
+        self.frame.columnconfigure(0, weight=1) #Listbox horizontally stretches to meet up with the scroll bar...
+        self.frame.columnconfigure(1, weight=0) #Scroll bar stays the same size regardless of frame width...
+        self.frame.rowconfigure(0, weight=1)
 
         for values in range(100): 
             self.listbox.insert(END, values)
@@ -186,12 +226,26 @@ class ListBoxScrollBar:
         self.listbox.config(yscrollcommand = self.scrollbar.set)
         self.scrollbar.config(command = self.listbox.yview)
 
-    def update_vals(self, list_vals):
+    def update_vals(self, list_vals, cols=None):
+        #Get current selection if applicable:
+        cur_sel = [m for m in self.listbox.curselection()]
+        #Select first element by default...
+        if len(cur_sel) == 0:
+            cur_sel = 0
+        else:
+            cur_sel = cur_sel[0]
+
+        #Clear listbox
         self.listbox.delete(0,'end')
         for values in list_vals:
             self.listbox.insert(END, values)
-        #Select first element by default...
-        self.listbox.select_set(0)
+        
+        #Colour the values if applicable:
+        if cols != None:
+            for ind in range(len(list_vals)):
+                self.listbox.itemconfig(ind, foreground=cols[ind])
+        #Select the prescribed element from above...
+        self.listbox.select_set(cur_sel)
         self.listbox.event_generate("<<ListboxSelect>>")
 
     def enable(self):
@@ -201,8 +255,11 @@ class ListBoxScrollBar:
         self.listbox.configure(state='disabled')
         # self.scrollbar.configure(state='disabled')
 
-    def get_sel_val(self):
-        values = [self.listbox.get(m) for m in self.listbox.curselection()]
+    def get_sel_val(self, get_index = False):
+        if get_index:
+            values = [m for m in self.listbox.curselection()]
+        else:
+            values = [self.listbox.get(m) for m in self.listbox.curselection()]
         return values[0]
 
 class PlotFrame:
@@ -224,10 +281,25 @@ class PlotFrame:
         self.Frame.rowconfigure(1, weight=1)
         self.Frame.columnconfigure(0, weight=1)
 
+        self.curData = []
         self.Cursors = []
 
-    def add_cursor(self):
-        new_curse = PlotCursorDrag(self, 'red')
+        self.Canvas.mpl_connect('button_press_event', self.event_mouse_pressed)
+
+    def add_cursor(self, col=''):
+        if col == '':
+            col_pool = ['red', 'blue', 'green', 'magenta', 'cyan']
+            cur_cols = [x.colour for x in self.Cursors]
+            for cur_cand_col in col_pool:
+                if not cur_cand_col in cur_cols:
+                    col = cur_cand_col
+                    break
+            #Just pick random colour if all colours are already taken...
+            if col == '':
+                import random
+                col = col_pool[random.randint(0, len(col_pool)-1)]
+        
+        new_curse = PlotCursorDrag(self, col)
         self.Cursors += [new_curse]
         return new_curse
 
@@ -241,6 +313,59 @@ class PlotFrame:
         width *= self.fig.dpi
         height *= self.fig.dpi
         return (width, height)
+
+    def plot_data_1D(self, dataX, dataY, clearAxis=True, colour = None):
+        self.curData = (dataX, dataY)
+        if clearAxis:
+            self.ax.clear()
+        if colour != None:
+            self.ax.plot(self.curData[0], self.curData[1], color = colour)
+        else:
+            self.ax.plot(self.curData[0], self.curData[1])
+        self.update()
+
+    def plot_data_2D(self, dataX, dataY, dataZ):
+        self.curData = (dataX, dataY, dataZ)
+        self.ax.clear()
+        self.ax.pcolor(self.curData[0], self.curData[1], self.curData[2], shading='nearest')
+        self.update()
+
+    def find_nearest(array, value):
+        return idx
+
+    def pop_plots_with_cursor_cuts(self, plot_cursor_x, plot_cursor_y, lstbx_cursor_info):
+        #Check if a cursor has moved...
+        no_changes = True
+        for cur_curse in self.Cursors:
+            if cur_curse.has_changed:
+                no_changes = False
+                break
+        if no_changes:
+            return
+        
+        #Plot each cursor's cut...
+        curse_infos = []
+        curse_cols = []
+        clear_first_plot = True
+        for cur_curse in self.Cursors:
+            if len(self.curData) == 2:
+                return np.array([])
+            else:
+                curse_infos += [ f"X: {cur_curse.cur_coord[0]}, Y: {cur_curse.cur_coord[1]}" ]
+                curse_cols += [cur_curse.colour]
+                cutX = int((np.abs(self.curData[0] - cur_curse.cur_coord[0])).argmin())
+                cutY = int((np.abs(self.curData[1] - cur_curse.cur_coord[1])).argmin())
+                plot_cursor_x.plot_data_1D(self.curData[0], self.curData[2][cutY,:], clear_first_plot, cur_curse.colour)
+                plot_cursor_y.plot_data_1D(self.curData[1], self.curData[2][:,cutX], clear_first_plot, cur_curse.colour)
+                clear_first_plot = False
+        lstbx_cursor_info.update_vals(curse_infos, curse_cols)
+
+    def event_mouse_pressed(self, event):
+        #Pick first cursor that can be picked by the mouse if applicable
+        for cur_curse in self.Cursors:
+            cur_curse.event_mouse_pressed(event)
+            if cur_curse._is_drag != 'None':
+                return
 
 class PlotCursorDrag(object):
     def __init__(self, pltFrame, colour):
@@ -263,9 +388,10 @@ class PlotCursorDrag(object):
         self._is_drag = 'None'  #Can be: inX, inY, inBoth, None
 
         self.pltFrame.Canvas.mpl_connect('motion_notify_event', self.display_cursor)
-        self.pltFrame.Canvas.mpl_connect('button_press_event', self.event_mouse_pressed)
         self.pltFrame.Canvas.mpl_connect('button_release_event', self.event_mouse_released)
         #canvas.mpl_connect('axes_leave_event', cc.hide_y)
+
+        self.has_changed = False
 
     def update(self):
         xlimts = self.ax.get_xlim()
@@ -278,6 +404,7 @@ class PlotCursorDrag(object):
             self.cur_coord = (0.5*(xlimts[0]+xlimts[1]), 0.5*(ylimts[0]+ylimts[1]))
         self.lx.set_xdata(self.cur_coord[0])
         self.ly.set_ydata(self.cur_coord[1])
+        self.has_changed = True
 
     def display_cursor(self, event):
         if event.inaxes and event.button == MouseButton.LEFT:
@@ -292,6 +419,7 @@ class PlotCursorDrag(object):
 
             self.lx.set_xdata(self.cur_coord[0])
             self.ly.set_ydata(self.cur_coord[1])
+            self.has_changed = True
         else:
             #Give up drag if mouse goes out of the axis...
             self._is_drag = 'None'
