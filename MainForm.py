@@ -260,7 +260,11 @@ class PlotCursorDrag(object):
         self.lx.set_visible(True)
         self.ly.set_visible(True)
 
+        self._is_drag = 'None'  #Can be: inX, inY, inBoth, None
+
         self.pltFrame.Canvas.mpl_connect('motion_notify_event', self.display_cursor)
+        self.pltFrame.Canvas.mpl_connect('button_press_event', self.event_mouse_pressed)
+        self.pltFrame.Canvas.mpl_connect('button_release_event', self.event_mouse_released)
         #canvas.mpl_connect('axes_leave_event', cc.hide_y)
 
     def update(self):
@@ -276,6 +280,24 @@ class PlotCursorDrag(object):
         self.ly.set_ydata(self.cur_coord[1])
 
     def display_cursor(self, event):
+        if event.inaxes and event.button == MouseButton.LEFT:
+            if self._is_drag == 'inBoth':
+                self.cur_coord = (event.xdata, event.ydata)
+            elif self._is_drag == 'inX':
+                self.cur_coord = (event.xdata, self.cur_coord[1])
+            elif self._is_drag == 'inY':
+                self.cur_coord = (self.cur_coord[0], event.ydata)
+            else:
+                return
+
+            self.lx.set_xdata(self.cur_coord[0])
+            self.ly.set_ydata(self.cur_coord[1])
+        else:
+            #Give up drag if mouse goes out of the axis...
+            self._is_drag = 'None'
+        # plt.draw()
+
+    def event_mouse_pressed(self, event):
         if event.inaxes and event.button == MouseButton.LEFT:
             #Adjust threshold appropriately...
             threshold_x, threshold_y = 10, 10
@@ -293,14 +315,14 @@ class PlotCursorDrag(object):
             thresh_y = abs(coord_px_y-mouse_px_y) < threshold_y
 
             if thresh_x and thresh_y:
-                self.cur_coord = (event.xdata, event.ydata)
+                self._is_drag = 'inBoth'
             elif thresh_x:
-                self.cur_coord = (event.xdata, self.cur_coord[1])
+                self._is_drag = 'inX'
             elif thresh_y:
-                self.cur_coord = (self.cur_coord[0], event.ydata)
+                self._is_drag = 'inY'
             else:
+                self._is_drag = 'None'
                 return
 
-            self.lx.set_xdata(self.cur_coord[0])
-            self.ly.set_ydata(self.cur_coord[1])
-        # plt.draw()
+    def event_mouse_released(self, event):
+        self._is_drag = 'None'
