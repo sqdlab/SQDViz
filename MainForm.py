@@ -7,6 +7,7 @@ from matplotlib.backends.backend_tkagg import (FigureCanvasTkAgg, NavigationTool
 from matplotlib.backend_bases import (key_press_handler, MouseButton)
 from matplotlib.figure import Figure
 from matplotlib.widgets import Cursor
+from matplotlib.colors import LinearSegmentedColormap
 
 import numpy as np
 from multiprocessing.pool import ThreadPool
@@ -68,27 +69,39 @@ class MainForm:
         frm_plttyp.grid(row=0,column=0)
         #######################################
         #
-        #######################################
-        #LISTBOXES FOR AXIS VARIABLE SELECTION#
-        frm_lstbxes = LabelFrame(master=self.frame_plot_sel, text="Plot Axes", padx=10, pady=10)
+        #########################
+        #AXIS VARIABLE SELECTION#
+        lblfrm_axis_sel = LabelFrame(master=self.frame_plot_sel, text="Plot Axes", padx=10, pady=10)
         #x-Axis Combobox
-        self.cmbx_axis_x = ComboBoxEx(frm_lstbxes, "x-axis")
+        self.cmbx_axis_x = ComboBoxEx(lblfrm_axis_sel, "x-axis")
         self.cmbx_axis_x.Frame.grid(row=0, column=0, sticky='se')
         #y-Axis Combobox
-        self.cmbx_axis_y = ComboBoxEx(frm_lstbxes, "y-axis")
+        self.cmbx_axis_y = ComboBoxEx(lblfrm_axis_sel, "y-axis")
         self.cmbx_axis_y.Frame.grid(row=1, column=0, sticky='se')
         #
-        frm_lstbxes.rowconfigure(0, weight=1)
-        frm_lstbxes.rowconfigure(1, weight=1)
-        frm_lstbxes.columnconfigure(0, weight=1)
+        lblfrm_axis_sel.rowconfigure(0, weight=1)
+        lblfrm_axis_sel.rowconfigure(1, weight=1)
+        lblfrm_axis_sel.columnconfigure(0, weight=1)
         #
-        frm_lstbxes.grid(row=0,column=1)
-        #######################################
+        lblfrm_axis_sel.grid(row=0,column=1)
+        #########################
+        #
+        ######################
+        #COLOUR KEY SELECTION#
+        lblfrm_ckey_sel = LabelFrame(master=self.frame_plot_sel, text="Colour key", padx=10, pady=10)
+        #x-Axis Combobox
+        self.cmbx_ckey = ComboBoxEx(lblfrm_ckey_sel, "Scheme")
+        self.cmbx_ckey.Frame.grid(row=0, column=0, sticky='se')
+        self.cmbx_ckey.combobox.bind("<<ComboboxSelected>>", self._event_cmbxCKey_changed)
+        #
+        lblfrm_ckey_sel.grid(row=0,column=2)
+        ######################
         #
         self.frame_plot_sel.grid(row=1,column=0,sticky='sew')
         self.frame_plot_sel.rowconfigure(0, weight=1)
         self.frame_plot_sel.columnconfigure(0, weight=1)
         self.frame_plot_sel.columnconfigure(1, weight=1)
+        self.frame_plot_sel.columnconfigure(2, weight=1)
         #
         self.frame_LHS.rowconfigure(0, weight=1)
         self.frame_LHS.rowconfigure(1, weight=0)
@@ -143,6 +156,13 @@ class MainForm:
         self.frame_RHS.rowconfigure(1, weight=1)
         self.frame_RHS.columnconfigure(0, weight=1)
 
+        def_col_maps = [('viridis', "Viridis"), ('afmhot', "AFM Hot"), ('hot', "Hot"), ('gnuplot', "GNU-Plot"), ('coolwarm', "Cool-Warm"), ('seismic', "Seismic"), ('rainbow', "Rainbow")]
+        self.colour_maps = []
+        for cur_col_map in def_col_maps:
+            self.colour_maps.append(ColourMap.fromDefault(cur_col_map[0], cur_col_map[1]))
+        #Commit colour maps to ComboBox
+        self.cmbx_ckey.update_vals([x.Name for x in self.colour_maps])
+        self.plot_main.set_colour_key(self.colour_maps[self.cmbx_ckey.get_sel_val(True)])
 
         self.plot_main.Canvas.mpl_connect("key_press_event", self._event_form_on_key_press)
         self.plot_main.add_cursor('red')
@@ -188,12 +208,14 @@ class MainForm:
         if self.plot_dim_type.get() == 1:
             #1D Plot
             self.cmbx_axis_y.disable()
+            self.cmbx_ckey.disable()
             #Move the sash in the paned-window to hide the 1D slices
             cur_height = self.pw_plots_main.winfo_height()
             self.pw_plots_main.sash_place(0, 1, int(cur_height-1))
         else:
             #2D Plot
             self.cmbx_axis_y.enable()
+            self.cmbx_ckey.enable()
             #Move the sash in the paned-window to show the 1D slices
             cur_height = self.pw_plots_main.winfo_height()
             self.pw_plots_main.sash_place(0, 1, int(cur_height*0.8))
@@ -201,6 +223,9 @@ class MainForm:
     def _event_form_on_key_press(self,event):
         print("you pressed {}".format(event.key))
         key_press_handler(event, self.plot_main.Canvas, self.plot_main.ToolBar)
+    
+    def _event_cmbxCKey_changed(self, event):
+        self.plot_main.set_colour_key(self.colour_maps[self.cmbx_ckey.get_sel_val(True)])
 
     def _event_quit():
         root.quit()     # stops mainloop
@@ -214,10 +239,10 @@ class ComboBoxEx:
         self.lbl_cmbx = Label(self.Frame, text = label)
         self.lbl_cmbx.grid(row=0, column=0, sticky="nes")
         self.combobox = ttk.Combobox(self.Frame)
-        self.combobox.grid(row=0, column=1, sticky="nws")
+        self.combobox.grid(row=0, column=1, sticky="news")
 
-        self.Frame.columnconfigure(0, weight=1) #Listbox horizontally stretches to meet up with the scroll bar...
-        self.Frame.columnconfigure(1, weight=0) #Scroll bar stays the same size regardless of frame width...
+        self.Frame.columnconfigure(0, weight=0) #Label is of constant size
+        self.Frame.columnconfigure(1, weight=1) #ComboBox is expected to rescale
         self.Frame.rowconfigure(0, weight=1)
 
         self._vals = []
@@ -236,7 +261,7 @@ class ComboBoxEx:
         else:
             #Select the prescribed element from above... Note that cur_sel is still in the new list...
             self.combobox.current(self._vals.index(cur_sel))
-        self.combobox.event_generate("<<ComboboxSelect>>")
+        self.combobox.event_generate("<<ComboboxSelected>>")
 
     def enable(self):
         self.combobox.configure(state='normal')
@@ -305,6 +330,31 @@ class ListBoxScrollBar:
             values = [self.listbox.get(m) for m in self.listbox.curselection()]
         return values[0]
 
+class ColourMap:
+    def __init__(self):
+        pass
+
+    @classmethod
+    def fromDefault(cls, cmap_name, display_name):
+        retObj = cls()
+        retObj._cmap = cmap_name
+        retObj._display_name = display_name
+        return retObj
+    
+    @classmethod
+    def fromCustom(cls, cdict, display_name, num_interpol=256):
+        retObj = cls()
+        retObj._cmap = LinearSegmentedColormap(display_name, segmentdata=cdict, N=num_interpol)
+        retObj._display_name = display_name
+        return retObj
+    
+    @property
+    def Name(self):
+        return self._display_name
+    @property
+    def CMap(self):
+        return self._cmap
+
 class PlotFrame:
     def __init__(self, root_ui):
         self.fig = Figure(figsize=(1,1))
@@ -326,6 +376,8 @@ class PlotFrame:
 
         self.curData = []
         self.Cursors = []
+        self._cur_col_key = 'viridis'
+        self._cur_2D = False
 
         self.Canvas.mpl_connect('button_press_event', self.event_mouse_pressed)
 
@@ -365,13 +417,24 @@ class PlotFrame:
             self.ax.plot(self.curData[0], self.curData[1], color = colour)
         else:
             self.ax.plot(self.curData[0], self.curData[1])
+        self._cur_2D = False
         self.update()
 
     def plot_data_2D(self, dataX, dataY, dataZ):
         self.curData = (dataX, dataY, dataZ)
-        self.ax.clear()
-        self.ax.pcolor(self.curData[0], self.curData[1], self.curData[2], shading='nearest')
-        self.update()
+        self._cur_2D = True
+        self._plot_2D()
+
+    def set_colour_key(self, new_col_key):
+        self._cur_col_key = new_col_key
+        self._plot_2D()
+
+    def _plot_2D(self):
+        if self._cur_2D:
+            self.ax.clear()
+            self.ax.pcolor(self.curData[0], self.curData[1], self.curData[2], shading='nearest', cmap=self._cur_col_key.CMap)
+            self.update()
+
 
     def find_nearest(array, value):
         return idx
