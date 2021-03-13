@@ -1,5 +1,6 @@
 import tkinter as tk
 from tkinter import*
+from tkinter import ttk
 
 from matplotlib.backends.backend_tkagg import (FigureCanvasTkAgg, NavigationToolbar2Tk)
 # Implement the default Matplotlib key bindings.
@@ -69,28 +70,26 @@ class MainForm:
         #
         #######################################
         #LISTBOXES FOR AXIS VARIABLE SELECTION#
-        frm_lstbxes = Frame(master=self.frame_plot_sel)
-        rcOff = (0,0) #Axis listbox row-column offset to make it easier to resposition the listboxes
-        #x-Axis column
-        lbl_axis_x = Label(frm_lstbxes, text = "x-axis")
-        lbl_axis_x.grid(row=rcOff[0], column=rcOff[1], padx=10, pady=2)
-        self.lstbx_x = ListBoxScrollBar(frm_lstbxes)
-        self.lstbx_x.frame.grid(row=rcOff[0]+1, column=rcOff[1], padx=10, pady=2)
-        #y-Axis column
-        lbl_axis_y = Label(frm_lstbxes, text = "y-axis")
-        lbl_axis_y.grid(row=rcOff[0], column=rcOff[1]+1, padx=10, pady=2)
-        self.lstbx_y = ListBoxScrollBar(frm_lstbxes)
-        self.lstbx_y.frame.grid(row=rcOff[0]+1, column=rcOff[1]+1, padx=10, pady=2)
+        frm_lstbxes = LabelFrame(master=self.frame_plot_sel, text="Plot Axes", padx=10, pady=10)
+        #x-Axis Combobox
+        self.cmbx_axis_x = ComboBoxEx(frm_lstbxes, "x-axis")
+        self.cmbx_axis_x.Frame.grid(row=0, column=0, sticky='se')
+        #y-Axis Combobox
+        self.cmbx_axis_y = ComboBoxEx(frm_lstbxes, "y-axis")
+        self.cmbx_axis_y.Frame.grid(row=1, column=0, sticky='se')
         #
-        frm_lstbxes.rowconfigure(rcOff[0], weight=0)
-        frm_lstbxes.rowconfigure(rcOff[0]+1, weight=1)
-        frm_lstbxes.columnconfigure(rcOff[1], weight=0)
-        frm_lstbxes.columnconfigure(rcOff[1]+1, weight=0)
+        frm_lstbxes.rowconfigure(0, weight=1)
+        frm_lstbxes.rowconfigure(1, weight=1)
+        frm_lstbxes.columnconfigure(0, weight=1)
         #
-        frm_lstbxes.grid(row=0,column=1,sticky='se')
+        frm_lstbxes.grid(row=0,column=1)
         #######################################
         #
         self.frame_plot_sel.grid(row=1,column=0,sticky='sew')
+        self.frame_plot_sel.rowconfigure(0, weight=1)
+        self.frame_plot_sel.columnconfigure(0, weight=1)
+        self.frame_plot_sel.columnconfigure(1, weight=1)
+        #
         self.frame_LHS.rowconfigure(0, weight=1)
         self.frame_LHS.rowconfigure(1, weight=0)
         self.frame_LHS.columnconfigure(0, weight=1)
@@ -152,8 +151,8 @@ class MainForm:
         self.data_extractor = DataExtractorH5single("swmr.h5", self.data_thread_pool)
         #
         indep_vars = self.data_extractor.get_independent_vars()
-        self.lstbx_x.update_vals(indep_vars)
-        self.lstbx_y.update_vals(indep_vars)
+        self.cmbx_axis_x.update_vals(indep_vars)
+        self.cmbx_axis_y.update_vals(indep_vars)
 
     def main_loop(self):
         while True:
@@ -172,10 +171,10 @@ class MainForm:
             #Setup new request if no new data is being fetched
             if not self.data_extractor.isFetching:
                 if self.plot_dim_type.get() == 1:
-                    self.data_extractor.fetch_data({'slice_vars':[self.lstbx_x.get_sel_val()]})
+                    self.data_extractor.fetch_data({'slice_vars':[self.cmbx_axis_x.get_sel_val()]})
                 else:
-                    xVar = self.lstbx_x.get_sel_val()
-                    yVar = self.lstbx_y.get_sel_val()
+                    xVar = self.cmbx_axis_x.get_sel_val()
+                    yVar = self.cmbx_axis_y.get_sel_val()
                     if xVar != yVar:
                         self.data_extractor.fetch_data({'slice_vars':[xVar, yVar]})
 
@@ -188,13 +187,13 @@ class MainForm:
     def _event_plotsel_changed(self):
         if self.plot_dim_type.get() == 1:
             #1D Plot
-            self.lstbx_y.disable()
+            self.cmbx_axis_y.disable()
             #Move the sash in the paned-window to hide the 1D slices
             cur_height = self.pw_plots_main.winfo_height()
             self.pw_plots_main.sash_place(0, 1, int(cur_height-1))
         else:
             #2D Plot
-            self.lstbx_y.enable()
+            self.cmbx_axis_y.enable()
             #Move the sash in the paned-window to show the 1D slices
             cur_height = self.pw_plots_main.winfo_height()
             self.pw_plots_main.sash_place(0, 1, int(cur_height*0.8))
@@ -208,6 +207,50 @@ class MainForm:
         root.destroy()  # this is necessary on Windows to prevent
                         # Fatal Python Error: PyEval_RestoreThread: NULL tstate
     
+class ComboBoxEx:
+    def __init__(self, parent_ui_element, label):
+        self.Frame = Frame(master=parent_ui_element)
+
+        self.lbl_cmbx = Label(self.Frame, text = label)
+        self.lbl_cmbx.grid(row=0, column=0, sticky="nes")
+        self.combobox = ttk.Combobox(self.Frame)
+        self.combobox.grid(row=0, column=1, sticky="nws")
+
+        self.Frame.columnconfigure(0, weight=1) #Listbox horizontally stretches to meet up with the scroll bar...
+        self.Frame.columnconfigure(1, weight=0) #Scroll bar stays the same size regardless of frame width...
+        self.Frame.rowconfigure(0, weight=1)
+
+        self._vals = []
+
+    def update_vals(self, list_vals):
+        #Get current selection if applicable:
+        cur_sel = self.get_sel_val(True)
+
+        #Clear combobox
+        self._vals = list(list_vals)
+        self.combobox['values'] = self._vals
+            
+        if cur_sel == None or not (cur_sel in self._vals):
+            #Select first element by default...
+            self.combobox.current(0)
+        else:
+            #Select the prescribed element from above... Note that cur_sel is still in the new list...
+            self.combobox.current(self._vals.index(cur_sel))
+        self.combobox.event_generate("<<ComboboxSelect>>")
+
+    def enable(self):
+        self.combobox.configure(state='normal')
+    def disable(self):
+        self.combobox.configure(state='disabled')
+
+    def get_sel_val(self, get_index = False):
+        if len(self._vals) == 0:
+            return None
+        if get_index:
+            return self.combobox.current()
+        else:
+            return self._vals[self.combobox.current()]
+
 class ListBoxScrollBar:
     def __init__(self, parent_ui_element):
         self.frame = Frame(master=parent_ui_element)
