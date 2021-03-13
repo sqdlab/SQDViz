@@ -113,10 +113,14 @@ class MainForm:
         #    RHS FRAME
         ###################
         #
+        self.pw_RHS = PanedWindow(orient=tk.VERTICAL, master=self.frame_RHS)
+        #
         ################
         #CURSOR DISPLAY#
         ################
+        #
         self.frame_cursors = LabelFrame(master=self.frame_RHS, text = "Cursors")
+        self.pw_RHS.add(self.frame_cursors, stretch='always')
         #
         #################
         #CURSOR CUT PLOTS
@@ -150,8 +154,25 @@ class MainForm:
         self.frame_cursors.rowconfigure(2, weight=0)
         self.frame_cursors.columnconfigure(0, weight=1)
         self.frame_cursors.columnconfigure(1, weight=1)
-        self.frame_cursors.pack(fill=BOTH, expand=1)
+        ################
         #
+        #################
+        #ANALYSIS WINDOW#
+        #################
+        #
+        self.lblfrm_analysis = LabelFrame(master=self.pw_RHS, text = "Analysis & postprocessing")
+        self.pw_RHS.add(self.lblfrm_analysis, stretch='always')
+        self.frm_analysis = ScrollBarFrame(self.lblfrm_analysis)
+        frm_canvas = self.frm_analysis.FrameMain
+        #
+        self.lstbx_procs = ListBoxScrollBar(frm_canvas)
+        self.lstbx_procs.frame.pack()
+        #
+        self.frm_analysis.pack(side="left", fill="both", expand=True)
+        #
+        #################
+        #
+        self.pw_RHS.grid(row=0,column=0,sticky='nsew')
         self.frame_RHS.rowconfigure(0, weight=1)
         self.frame_RHS.rowconfigure(1, weight=1)
         self.frame_RHS.columnconfigure(0, weight=1)
@@ -199,7 +220,7 @@ class MainForm:
                         self.data_extractor.fetch_data({'slice_vars':[xVar, yVar]})
 
             #tkinter.mainloop()
-            self.root.update_idletasks()
+            # self.root.update_idletasks()
             self.root.update()
         # If you put root.destroy() here, it will cause an error if the window is
         # closed with the window manager.
@@ -560,3 +581,20 @@ class PlotCursorDrag(object):
 
     def event_mouse_released(self, event):
         self._is_drag = 'None'
+
+class ScrollBarFrame(ttk.Frame):
+    def __init__(self, container, *args, **kwargs):
+        #Inspired by: https://www.tecladocode.com/tkinter-scrollable-frames/
+        super().__init__(container, *args, **kwargs)
+        canvas = tk.Canvas(self)
+        scrollbar = ttk.Scrollbar(self, orient="vertical", command=canvas.yview)
+        self.FrameMain = ttk.Frame(canvas)
+
+        self.FrameMain.bind("<Configure>",lambda e: canvas.configure( scrollregion=canvas.bbox("all") ))
+
+        canvas.create_window((0, 0), window=self.FrameMain, anchor="nw")
+
+        canvas.configure(yscrollcommand=scrollbar.set)
+
+        canvas.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
