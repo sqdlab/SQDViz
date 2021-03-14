@@ -10,10 +10,15 @@ grp_params = hf.create_group('parameters')
 grp_params.create_dataset('freq',data=np.hstack([0,freq_vals]))
 grp_params.create_dataset('ampl',data=np.hstack([1,ampl_vals]))
 
+grp_meas = hf.create_group('measurements')
+grp_meas.create_dataset('I',data=np.hstack([0]))
+grp_meas.create_dataset('Q',data=np.hstack([1]))
+
 sweep_arrays = [freq_vals, ampl_vals]
 sweep_grids = np.meshgrid(*sweep_arrays)
 sweep_grids = np.array(sweep_grids).T.reshape(-1,len(sweep_arrays))
 
+#data_arr = np.stack([(1-np.exp(-sweep_grids[:,1]))/(1+sweep_grids[:,0]**2/sweep_grids[:,1])]).T
 data_arr = np.stack([(1-np.exp(-sweep_grids[:,1]))/(1+sweep_grids[:,0]**2/sweep_grids[:,1]),
                  -0.5*(1-np.exp(-sweep_grids[:,1]))/(1+sweep_grids[:,0]**2/sweep_grids[:,1])]).T
 

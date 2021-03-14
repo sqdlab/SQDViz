@@ -26,3 +26,6 @@ class DataExtractor:
 
     def get_independent_vars(self):
         raise NotImplementedError()
+
+    def get_dependent_vars(self):
+        raise NotImplementedError()

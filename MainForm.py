@@ -78,9 +78,13 @@ class MainForm:
         #y-Axis Combobox
         self.cmbx_axis_y = ComboBoxEx(lblfrm_axis_sel, "y-axis")
         self.cmbx_axis_y.Frame.grid(row=1, column=0, sticky='se')
+        #Dependent Variables Combobox
+        self.cmbx_dep_var = ComboBoxEx(lblfrm_axis_sel, "Dep. Var.")
+        self.cmbx_dep_var.Frame.grid(row=2, column=0, sticky='se')
         #
         lblfrm_axis_sel.rowconfigure(0, weight=1)
         lblfrm_axis_sel.rowconfigure(1, weight=1)
+        lblfrm_axis_sel.rowconfigure(2, weight=1)
         lblfrm_axis_sel.columnconfigure(0, weight=1)
         #
         lblfrm_axis_sel.grid(row=0,column=1)
@@ -135,19 +139,19 @@ class MainForm:
         #
         self.frame_cursor_plots.grid(row=0, column=0, columnspan=2, padx=10, pady=2, sticky="news")
         #
-        ###############
-        #CURSOR LISTBOX
+        ################
+        #CURSOR LISTBOX#
         self.lstbx_cursors = ListBoxScrollBar(self.frame_cursors)
         self.lstbx_cursors.frame.grid(row=1, column=0, columnspan=2, padx=10, pady=2, sticky="ews")
         ################
         #
-        ###################
-        #ADD/REMOVE BUTTONS
+        ####################
+        #ADD/REMOVE BUTTONS#
         self.btn_cursor_add = tk.Button(master=self.frame_cursors, text ="Add cursor", command = lambda: self.plot_main.add_cursor())
         self.btn_cursor_add.grid(row=2, column=0)
         self.btn_cursor_add = tk.Button(master=self.frame_cursors, text ="Delete cursor", command = lambda: self.plot_main.Cursors.pop(self.lstbx_cursors.get_sel_val(True)))
         self.btn_cursor_add.grid(row=2, column=1)
-        ###################
+        ####################
         #
         self.frame_cursors.rowconfigure(0, weight=1)
         self.frame_cursors.rowconfigure(1, weight=0)
@@ -165,8 +169,16 @@ class MainForm:
         self.frm_analysis = ScrollBarFrame(self.lblfrm_analysis)
         frm_canvas = self.frm_analysis.FrameMain
         #
-        self.lstbx_procs = ListBoxScrollBar(frm_canvas)
-        self.lstbx_procs.frame.pack()
+        #####################
+        #PROCESSOR SELECTION#
+        self.frm_proc_sel = Frame(master=frm_canvas)
+        #
+        self.lbl_procs = Label(self.frm_proc_sel, text = "Postprocessors")
+        self.lbl_procs.grid(row=0, column=0, sticky="nes")
+        self.lstbx_procs = ListBoxScrollBar(self.frm_proc_sel)
+        self.lstbx_procs.frame.grid(row=1,column=0,sticky='nsew')
+        self.frm_proc_sel.pack(side="left", fill="both", expand=True)
+        #####################
         #
         self.frm_analysis.pack(side="left", fill="both", expand=True)
         #
@@ -194,15 +206,18 @@ class MainForm:
         indep_vars = self.data_extractor.get_independent_vars()
         self.cmbx_axis_x.update_vals(indep_vars)
         self.cmbx_axis_y.update_vals(indep_vars)
+        self.dep_vars = self.data_extractor.get_dependent_vars()
+        self.cmbx_dep_var.update_vals(self.dep_vars)
 
     def main_loop(self):
         while True:
             if self.data_extractor.data_ready():
                 new_data = self.data_extractor.get_data()
+                cur_var_ind = self.dep_vars.index(self.cmbx_dep_var.get_sel_val())
                 if len(new_data[0]) == 1:
-                    self.plot_main.plot_data_1D(new_data[0][0], new_data[1])
+                    self.plot_main.plot_data_1D(new_data[0][0], new_data[1][cur_var_ind])
                 else:
-                    self.plot_main.plot_data_2D(new_data[0][0], new_data[0][1], new_data[1].T)
+                    self.plot_main.plot_data_2D(new_data[0][0], new_data[0][1], new_data[1][cur_var_ind].T)    #Transposed due to pcolor's indexing requirements...
             
             self.plot_main.Canvas.draw()
             self.plot_main.pop_plots_with_cursor_cuts(self.plot_cursorX, self.plot_cursorY, self.lstbx_cursors)
