@@ -1,6 +1,7 @@
 import tkinter as tk
 from tkinter import*
 from tkinter import ttk
+from tkinter.scrolledtext import ScrolledText
 
 from matplotlib.backends.backend_tkagg import (FigureCanvasTkAgg, NavigationToolbar2Tk)
 # Implement the default Matplotlib key bindings.
@@ -168,20 +169,63 @@ class MainForm:
         #
         self.lblfrm_analysis = LabelFrame(master=self.pw_RHS, text = "Analysis & postprocessing")
         self.pw_RHS.add(self.lblfrm_analysis, stretch='always')
-        self.frm_analysis = ScrollBarFrame(self.lblfrm_analysis)
-        frm_canvas = self.frm_analysis.FrameMain
+        self.frm_analysis = Frame(self.lblfrm_analysis)
         #
         #####################
         #PROCESSOR SELECTION#
-        self.frm_proc_sel = Frame(master=frm_canvas)
+        self.frm_proc_sel = Frame(master=self.frm_analysis)
         #
-        self.lbl_procs = Label(self.frm_proc_sel, text = "Postprocessors")
-        self.lbl_procs.grid(row=0, column=0, sticky="nes")
-        self.lstbx_procs = ListBoxScrollBar(self.frm_proc_sel)
-        self.lstbx_procs.frame.grid(row=1,column=0,sticky='nsew')
-        self.frm_proc_sel.pack(side="left", fill="both", expand=True)
+        #List of Post-Processors
+        frm_proc_sel_lstbxs = Frame(master=self.frm_proc_sel)
+        self.lbl_procs = LabelFrame(frm_proc_sel_lstbxs, text = "Postprocessors")
+        self.lbl_procs.grid(row=0, column=0)
+        self.lstbx_procs = ListBoxScrollBar(frm_proc_sel_lstbxs)
+        self.lstbx_procs.frame.grid(row=1,column=0)
+        frm_proc_sel_lstbxs.rowconfigure(0, weight=0)
+        frm_proc_sel_lstbxs.rowconfigure(1, weight=1)
+        frm_proc_sel_lstbxs.columnconfigure(0, weight=1)
+        frm_proc_sel_lstbxs.grid(row=0, column=0)
+        #
+        #Description and Add Button
+        frm_proc_sel_desc_addbtn = Frame(master=self.frm_proc_sel)
+        self.lbl_proc_sel_desc = LabelMultiline(frm_proc_sel_desc_addbtn)
+        self.lbl_proc_sel_desc.Frame.grid(row=0,column=0, sticky='news')
+        self.btn_proc_sel_add = Button(frm_proc_sel_desc_addbtn, text="Add Function", command=self._event_btn_PPfunction_add)
+        self.btn_proc_sel_add.grid(row=1, column=0)
+        frm_proc_sel_desc_addbtn.rowconfigure(0, weight=1)
+        frm_proc_sel_desc_addbtn.rowconfigure(1, weight=0)
+        frm_proc_sel_desc_addbtn.columnconfigure(0, weight=1)
+        frm_proc_sel_desc_addbtn.grid(row=0, column=1, sticky='news')
+        #
+        self.frm_proc_sel.columnconfigure(0, weight=0)
+        self.frm_proc_sel.columnconfigure(1, weight=1)
+        #
+        self.frm_proc_sel.grid(row=0, column=0, sticky='ew')
         #####################
         #
+        ##################
+        #MAIN CODE WINDOW#
+        #
+        #Main entry Textbox
+        self.tbx_proc_code = ScrolledText(master=self.frm_analysis)
+        self.tbx_proc_code.grid(row=1, column=0, sticky='news')
+        #
+        #Output Textbox and update button
+        frm_proc_output_tbx = Frame(master=self.frm_analysis)
+        lbl_procs = Label(frm_proc_output_tbx, text = "Output Dataset")
+        lbl_procs.grid(row=0, column=0)
+        self.tbx_proc_output = ttk.Entry(frm_proc_output_tbx)
+        self.tbx_proc_output.grid(row=0, column=1)
+        self.btn_proc_update_plot = Button(frm_proc_output_tbx, text="Update plot", command=self._event_btn_PPupdate_plot)
+        self.btn_proc_update_plot.grid(row=0, column=2)
+        #
+        frm_proc_output_tbx.grid(row=2, column=0, sticky='news')    
+        ##################
+        #
+        self.frm_analysis.columnconfigure(0, weight=1)
+        self.frm_analysis.rowconfigure(0, weight=0)
+        self.frm_analysis.rowconfigure(1, weight=1)
+        self.frm_analysis.rowconfigure(2, weight=0)
         self.frm_analysis.pack(side="left", fill="both", expand=True)
         #
         #################
@@ -212,8 +256,10 @@ class MainForm:
         self.cmbx_dep_var.update_vals(self.dep_vars)
 
         #Setup available postprocessors
-        self.lstbx_procs.update_vals(PostProcessors.get_all_post_processors())
-        self.lstbx_procs.listbox.bind("<<ListboxSelected>>", self._event_cmbxCKey_changed)
+        self.cur_post_procs = PostProcessors.get_all_post_processors()
+        self.lstbx_procs.update_vals(self.cur_post_procs.keys())
+        self.lstbx_procs.listbox.bind("<<ListboxSelect>>", self._event_lstbxPPfunction_changed)
+        self.cmds_to_execute = ""
 
     def main_loop(self):
         while True:
@@ -222,8 +268,10 @@ class MainForm:
                 cur_var_ind = self.dep_vars.index(self.cmbx_dep_var.get_sel_val())
                 if len(new_data[0]) == 1:
                     self.plot_main.plot_data_1D(new_data[0][0], new_data[1][cur_var_ind])
+                    self.update_plot_post_proc()
                 else:
                     self.plot_main.plot_data_2D(new_data[0][0], new_data[0][1], new_data[1][cur_var_ind].T)    #Transposed due to pcolor's indexing requirements...
+                    self.update_plot_post_proc()
             
             self.plot_main.Canvas.draw()
             self.plot_main.pop_plots_with_cursor_cuts(self.plot_cursorX, self.plot_cursorY, self.lstbx_cursors)
@@ -270,7 +318,41 @@ class MainForm:
         self.plot_main.set_colour_key(self.colour_maps[self.cmbx_ckey.get_sel_val(True)])
 
     def _event_lstbxPPfunction_changed(self, event):
-        self.lstbx_procs.get_sel_val()
+        self.lbl_proc_sel_desc.Label['text'] = "Description: " + self.cur_post_procs[self.lstbx_procs.get_sel_val()].get_description()
+    def _event_btn_PPfunction_add(self):
+        cur_func = self.lstbx_procs.get_sel_val()
+        cur_func_obj = self.cur_post_procs[self.lstbx_procs.get_sel_val()]
+        ret_vals = str(tuple(cur_func_obj.get_return_data_names()))[1:-1]
+        self.tbx_proc_code.insert(tk.INSERT, f'{ret_vals} = {cur_func}{tuple(cur_func_obj.get_types())}'.replace('\'',''))
+
+    def _event_btn_PPupdate_plot(self):
+        self.cmds_to_execute = ""
+        #Function declarations
+        for cur_key in self.cur_post_procs.keys():
+            self.cmds_to_execute += f'{cur_key} = self.cur_post_procs[\'{cur_key}\']\n'
+        #Compile post-processing commands
+        self.cmds_to_execute += self.tbx_proc_code.get("1.0", tk.END) + '\n'
+        cur_output_var = self.tbx_proc_output.get()
+        self.cmds_to_execute += f'global cur_data; cur_data={cur_output_var}'
+
+    def update_plot_post_proc(self):
+        if self.cmds_to_execute == "":
+            return
+
+        #Data declarations
+        data = {}
+        for cur_dep_var in self.dep_vars:
+            if self.plot_dim_type.get() == 1:
+                data[cur_dep_var] = {'x': self.plot_main.curData[0], 'data': self.plot_main.curData[1]}
+            else:
+                data[cur_dep_var] = {'x': self.plot_main.curData[0], 'y': self.plot_main.curData[1], 'data': self.plot_main.curData[2]}
+        #Execute post-processing commands
+        exec(self.cmds_to_execute)
+        #Update plots
+        if self.plot_dim_type.get() == 1:
+            self.plot_main.plot_data_1D(cur_data['x'], cur_data['data'])
+        else:
+            self.plot_main.plot_data_2D(cur_data['x'], cur_data['y'], cur_data['data'])
 
     def _event_quit():
         root.quit()     # stops mainloop
@@ -622,3 +704,10 @@ class ScrollBarFrame(ttk.Frame):
 
         canvas.pack(side="left", fill="both", expand=True)
         scrollbar.pack(side="right", fill="y")
+
+class LabelMultiline:
+    def __init__(self, parent_ui_element):
+        self.Frame = Frame(master=parent_ui_element)
+        self.Label = tk.Label(self.Frame, text="Sample Text")
+        self.Label.pack(side="left", fill="x")
+        self.Label.bind('<Configure>', lambda e: self.Label.config(wraplength=self.Frame.winfo_width()))

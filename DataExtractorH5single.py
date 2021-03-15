@@ -62,7 +62,6 @@ class DataExtractorH5single(DataExtractor):
         if len(final_data[0].shape) == 2:
             #Check if data needs to be transposed
             if self._param_names.index(params['slice_vars'][0]) > self._param_names.index(params['slice_vars'][1]):
-                final_data = final_data.T
                 for ind in range(len(self._dep_params)):
                     final_data[ind] = final_data[ind].T       #TODO: Suboptimal? Do this when generating the slices above?
         return (indep_params, final_data)
