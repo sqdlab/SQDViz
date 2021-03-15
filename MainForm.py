@@ -14,6 +14,8 @@ from multiprocessing.pool import ThreadPool
 
 from DataExtractorH5single import*
 
+from PostProcessors import*
+
 class MainForm:
     def __init__(self):
         self.root = tk.Tk()
@@ -209,6 +211,10 @@ class MainForm:
         self.dep_vars = self.data_extractor.get_dependent_vars()
         self.cmbx_dep_var.update_vals(self.dep_vars)
 
+        #Setup available postprocessors
+        self.lstbx_procs.update_vals(PostProcessors.get_all_post_processors())
+        self.lstbx_procs.listbox.bind("<<ListboxSelected>>", self._event_cmbxCKey_changed)
+
     def main_loop(self):
         while True:
             if self.data_extractor.data_ready():
@@ -262,6 +268,9 @@ class MainForm:
     
     def _event_cmbxCKey_changed(self, event):
         self.plot_main.set_colour_key(self.colour_maps[self.cmbx_ckey.get_sel_val(True)])
+
+    def _event_lstbxPPfunction_changed(self, event):
+        self.lstbx_procs.get_sel_val()
 
     def _event_quit():
         root.quit()     # stops mainloop
