@@ -192,7 +192,7 @@ class MainForm:
         frm_proc_sel_desc_addbtn = Frame(master=self.frm_proc_sel)
         self.lbl_proc_sel_desc = LabelMultiline(frm_proc_sel_desc_addbtn)
         self.lbl_proc_sel_desc.Frame.grid(row=0,column=0, sticky='news')
-        self.btn_proc_sel_add = Button(frm_proc_sel_desc_addbtn, text="Add Function", command=self._event_btn_PPfunction_add)
+        self.btn_proc_sel_add = Button(frm_proc_sel_desc_addbtn, text="Add Function", command=self._event_btn_post_proc_add)
         self.btn_proc_sel_add.grid(row=1, column=0)
         frm_proc_sel_desc_addbtn.rowconfigure(0, weight=1)
         frm_proc_sel_desc_addbtn.rowconfigure(1, weight=0)
@@ -211,21 +211,26 @@ class MainForm:
         frm_proc_construction = Frame(master=self.frm_analysis)
         #
         ####Process List####
-        frm_proc_list = Frame(master=frm_proc_construction)
+        frm_proc_list = LabelFrame(master=frm_proc_construction,text="new")
         self.lstbx_procs_current = ListBoxScrollBar(frm_proc_list)
-        self.lstbx_procs_current.frame.grid(row=0, column=0, columnspan=3, padx=10, pady=2, sticky="ews")
-        self.btn_proc_list_up = Button(frm_proc_list, text="▲")#, command=self._)
-        self.btn_proc_list_up.grid(row=1, column=0)
-        self.btn_proc_list_down = Button(frm_proc_list, text="▼")#, command=self._)
-        self.btn_proc_list_down.grid(row=1, column=1)
-        self.btn_proc_list_down = Button(frm_proc_list, text="➕", command=self._event_btn_post_proc_add)
-        self.btn_proc_list_down.grid(row=1, column=2)
+        self.lstbx_procs_current.frame.grid(row=0, column=0, columnspan=3, sticky="news")
+        self.btn_proc_list_up = Button(frm_proc_list, text="▲", command=self._event_btn_post_proc_up)
+        self.btn_proc_list_up.grid(row=1, column=0, sticky="ew")
+        self.btn_proc_list_down = Button(frm_proc_list, text="▼", command=self._event_btn_post_proc_down)
+        self.btn_proc_list_down.grid(row=1, column=1, sticky="ew")
+        self.btn_proc_list_del = Button(frm_proc_list, text="❌", command=self._event_btn_post_proc_delete)
+        self.btn_proc_list_del.grid(row=1, column=2, sticky="we")
         #
+        frm_proc_list.rowconfigure(0, weight=1)
+        frm_proc_list.rowconfigure(1, weight=0)
+        frm_proc_list.columnconfigure(0, weight=1)
+        frm_proc_list.columnconfigure(1, weight=1)
+        frm_proc_list.columnconfigure(2, weight=1)
         frm_proc_list.grid(row=0, column=0, padx=10, pady=2, sticky="ews")
         #
         ####Analysis Display Window####
         self.frm_proc_disp = Frame(master=frm_proc_construction)
-        self.frm_proc_disp.grid(row=0, column=1, padx=10, pady=2, sticky="ews")
+        self.frm_proc_disp.grid(row=0, column=1, padx=10, pady=2, sticky="news")
         self.frm_proc_disp_children = []    #Tkinter's frame children enumeration is a bit strange...
         #
         #
@@ -285,7 +290,10 @@ class MainForm:
         #Currently selected postprocessors
         self.cur_post_procs = []
         self.lstbx_procs_current.listbox.bind("<<ListboxSelect>>", self._event_lstbx_proc_current_changed)
+        self.post_procs_enabled_chkbx_var = tk.BooleanVar()
         self.cur_post_proc_output = "dFinal"
+        #Setup current post-processing analysis ListBox and select the first entry (the final output entry)
+        self._post_procs_fill_current(0)
 
     def main_loop(self):
         while True:
@@ -345,11 +353,6 @@ class MainForm:
 
     def _event_lstbxPPfunction_changed(self, event):
         self.lbl_proc_sel_desc.Label['text'] = "Description: " + self.post_procs_all[self.lstbx_procs.get_sel_val()].get_description()
-    def _event_btn_PPfunction_add(self):
-        cur_func = self.lstbx_procs.get_sel_val()
-        cur_func_obj = self.post_procs_all[self.lstbx_procs.get_sel_val()]
-        ret_vals = str(tuple(cur_func_obj.get_return_data_names()))[1:-1]
-        self.tbx_proc_code.insert(tk.INSERT, f'{ret_vals} = {cur_func}{tuple(cur_func_obj.get_types())}'.replace('\'',''))
 
     def _post_procs_current_disp_text(self, cur_proc):
         '''
@@ -376,7 +379,10 @@ class MainForm:
         # arr_args_out = tuple(cur_proc['ArgsOutput'])
         #Note that it also has to be changed in callback functions like _callback_tbx_post_procs_disp_callback_Int etc...
 
-        cur_str = ""
+        if cur_proc['Enabled']:
+            cur_str = ""
+        else:
+            cur_str = "⊘"
         cur_str += str(arr_args_in)
         cur_str += "→"
         cur_str += cur_proc['ProcessName']
@@ -421,6 +427,9 @@ class MainForm:
         self.cur_post_proc_output = strVal
         self.lstbx_procs_current.modify_selected_index("Final Output: "+self.cur_post_proc_output)
         return True
+    def _callback_chkbx_post_procs_disp_enabled(self, cur_proc):
+        cur_proc['Enabled'] = self.post_procs_enabled_chkbx_var.get()
+        self.lstbx_procs_current.modify_selected_index(self._post_procs_current_disp_text(cur_proc))
     def _post_procs_disp_activate(self):
         cur_ind = self.lstbx_procs_current.get_sel_val(True)
 
@@ -442,6 +451,12 @@ class MainForm:
         cur_proc = self.cur_post_procs[cur_ind]
         
         row_off = 0
+        chkbx_enabled = Checkbutton(self.frm_proc_disp, text = "Enabled", variable=self.post_procs_enabled_chkbx_var, command=partial(self._callback_chkbx_post_procs_disp_enabled, cur_proc))
+        self.post_procs_enabled_chkbx_var.set(cur_proc['Enabled'])
+        chkbx_enabled.grid(row=row_off, column=0)
+        self.frm_proc_disp_children.append(chkbx_enabled)
+        row_off += 1
+        #
         for ind, cur_arg in enumerate(cur_proc['ProcessObj'].get_input_args()):
             lbl_procs = Label(self.frm_proc_disp, text = cur_arg[0])
             lbl_procs.grid(row=row_off, column=0)
@@ -475,7 +490,18 @@ class MainForm:
             #
             row_off += 1
 
-            
+    def _event_btn_post_proc_up(self):
+        cur_ind = self.lstbx_procs_current.get_sel_val(True)
+        if cur_ind > 0 and cur_ind < len(self.cur_post_procs):  #Shouldn't fail as the button should be otherwise disabled (rather redundant check...)
+            cur_val = self.cur_post_procs.pop(cur_ind)
+            self.cur_post_procs.insert(cur_ind-1, cur_val)
+            self._post_procs_fill_current(cur_ind-1)
+    def _event_btn_post_proc_down(self):
+        cur_ind = self.lstbx_procs_current.get_sel_val(True)
+        if cur_ind < len(self.cur_post_procs)-1:  #Shouldn't fail as the button should be otherwise disabled (rather redundant check...)
+            cur_val = self.cur_post_procs.pop(cur_ind)
+            self.cur_post_procs.insert(cur_ind+1, cur_val)
+            self._post_procs_fill_current(cur_ind+1)
     def _event_btn_post_proc_add(self):
         cur_func = self.lstbx_procs.get_sel_val()
         cur_func_obj = self.post_procs_all[cur_func]
@@ -483,12 +509,33 @@ class MainForm:
             'ArgsInput'   : cur_func_obj.get_default_input_args(),
             'ArgsOutput'  : cur_func_obj.get_default_output_args(),
             'ProcessName' : cur_func,
-            'ProcessObj'  : cur_func_obj
+            'ProcessObj'  : cur_func_obj,
+            'Enabled'     : True
         }]
         self._post_procs_fill_current(len(self.cur_post_procs)-1)
+    def _event_btn_post_proc_delete(self):
+        cur_ind = self.lstbx_procs_current.get_sel_val(True)
+        if cur_ind < len(self.cur_post_procs):  #Shouldn't fail as the button should be otherwise disabled (rather redundant check...)
+            self.cur_post_procs.pop(cur_ind)
+            self._post_procs_fill_current(cur_ind)    #Should at worst select the final output entry...
     def _event_lstbx_proc_current_changed(self, event):
         self._post_procs_disp_clear()
         self._post_procs_disp_activate()
+        #Disable the movement arrows if selecting an edge
+        cur_ind = self.lstbx_procs_current.get_sel_val(True)
+        if cur_ind < len(self.cur_post_procs)-1:
+            self.btn_proc_list_down.configure(state='normal')
+        else:
+            self.btn_proc_list_down.configure(state='disabled')
+        if cur_ind == 0 or cur_ind >= len(self.cur_post_procs):
+            self.btn_proc_list_up.configure(state='disabled')
+        else:
+            self.btn_proc_list_up.configure(state='normal')
+        #Disable delete button if selecting the final output entry
+        if cur_ind == len(self.cur_post_procs):
+            self.btn_proc_list_del.configure(state='disabled')
+        else:
+            self.btn_proc_list_del.configure(state='normal')
 
     def _event_btn_PPupdate_plot(self):
         self.cmds_to_execute = ""
@@ -514,6 +561,9 @@ class MainForm:
 
         #Process each command sequentially
         for cur_proc in self.cur_post_procs:
+            if not cur_proc['Enabled']:
+                continue
+
             #Process input arguments
             cur_args = cur_proc['ArgsInput'][:]
             for ind, cur_arg in enumerate(cur_proc['ProcessObj'].get_input_args()):
