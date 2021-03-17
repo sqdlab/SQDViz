@@ -24,7 +24,7 @@ class MainForm:
         self.root = tk.Tk()
         self.root.wm_title("SQDviz - Data visualisation tool")
 
-        self.pw_main_LR_UI = PanedWindow(orient =tk.HORIZONTAL, master=self.root)
+        self.pw_main_LR_UI = PanedWindow(orient =tk.HORIZONTAL, master=self.root, sashwidth=3, bg = "#000077", bd = 0)
         self.frame_LHS = Frame(master=self.pw_main_LR_UI)
         self.frame_RHS = Frame(master=self.pw_main_LR_UI)
         self.pw_main_LR_UI.add(self.frame_LHS,stretch='always')
@@ -41,7 +41,7 @@ class MainForm:
         ###################
         #MAIN PLOT DISPLAY#
         ###################
-        self.pw_plots_main = PanedWindow(orient =tk.VERTICAL, master=self.frame_LHS)
+        self.pw_plots_main = PanedWindow(orient =tk.VERTICAL, master=self.frame_LHS, sashwidth=3, bg = "#000077", bd = 0)
         self.plot_main = PlotFrame(self.root)
         self.pw_plots_main.add(self.plot_main.Frame,stretch='always')
         self.plot_slice = PlotFrame(self.root)
@@ -122,7 +122,7 @@ class MainForm:
         #    RHS FRAME
         ###################
         #
-        self.pw_RHS = PanedWindow(orient=tk.VERTICAL, master=self.frame_RHS)
+        self.pw_RHS = PanedWindow(orient=tk.VERTICAL, master=self.frame_RHS, sashwidth=3, bg = "#000077", bd = 0)
         #
         ################
         #CURSOR DISPLAY#
@@ -211,7 +211,7 @@ class MainForm:
         frm_proc_construction = Frame(master=self.frm_analysis)
         #
         ####Process List####
-        frm_proc_list = LabelFrame(master=frm_proc_construction,text="new")
+        frm_proc_list = Frame(master=frm_proc_construction)
         self.lstbx_procs_current = ListBoxScrollBar(frm_proc_list)
         self.lstbx_procs_current.frame.grid(row=0, column=0, columnspan=3, sticky="news")
         self.btn_proc_list_up = Button(frm_proc_list, text="▲", command=self._event_btn_post_proc_up)
@@ -240,12 +240,8 @@ class MainForm:
         #
         #Output Textbox and update button
         frm_proc_output_tbx = Frame(master=self.frm_analysis)
-        lbl_procs = Label(frm_proc_output_tbx, text = "Output Dataset")
-        lbl_procs.grid(row=0, column=0)
-        self.tbx_proc_output = ttk.Entry(frm_proc_output_tbx)
-        self.tbx_proc_output.grid(row=0, column=1)
-        self.btn_proc_update_plot = Button(frm_proc_output_tbx, text="Update plot", command=self._event_btn_PPupdate_plot)
-        self.btn_proc_update_plot.grid(row=0, column=2)
+        self.lbl_procs_errors = Label(frm_proc_output_tbx, text = "")
+        self.lbl_procs_errors.grid(row=0, column=0)
         #
         frm_proc_output_tbx.grid(row=2, column=0, sticky='news')
         #####################
@@ -549,6 +545,7 @@ class MainForm:
 
     def update_plot_post_proc(self):
         if len(self.cur_post_procs) == 0:
+            self.lbl_procs_errors['text'] = f"Add functions to activate postprocessing."
             return
 
         #Data declarations
@@ -560,7 +557,7 @@ class MainForm:
                 data[cur_dep_var] = {'x': self.plot_main.curData[0], 'y': self.plot_main.curData[1], 'data': self.plot_main.curData[2]}
 
         #Process each command sequentially
-        for cur_proc in self.cur_post_procs:
+        for cur_proc_ind, cur_proc in enumerate(self.cur_post_procs):
             if not cur_proc['Enabled']:
                 continue
 
@@ -571,7 +568,7 @@ class MainForm:
                     if cur_args[ind] in data:
                         cur_args[ind] = data[cur_args[ind]]
                     else:
-                        #Fire error message
+                        self.lbl_procs_errors['text'] = f"Dataset \'{cur_args[ind]}\' does not exist in step #{cur_proc_ind+1}"
                         return
             #Execute command
             output_tuples = cur_proc['ProcessObj'](*cur_args)
@@ -583,8 +580,11 @@ class MainForm:
         if self.cur_post_proc_output in data:
             cur_data = data[self.cur_post_proc_output]
         else:
-            #Fire error message
+            self.lbl_procs_errors['text'] = f"Dataset \'{self.cur_post_proc_output}\' does not exist"   #It's the final entry - if it doesn't exist yet, it doesn't exist...
             return
+
+        #No errors - so reset the message...
+        self.lbl_procs_errors['text'] = ""
 
         #Update plots
         if len(self.plot_main.curData) == 2:
