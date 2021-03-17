@@ -356,7 +356,7 @@ class MainForm:
         Generates the string shown in each entry in the ListBox of current processes used in the post-processing.
 
         Inputs:
-            - cur_proc - Current process to be displayed. It is simply one of the tuples in the array self.cur_post_procs.
+            cur_proc - Current process to be displayed. It is simply one of the tuples in the array self.cur_post_procs.
         '''
         #Filter to only show the data arguments
         arr_args_in = []
@@ -399,7 +399,6 @@ class MainForm:
             cur_child_ui_elem.destroy()
         self.frm_proc_disp_children = []
 
-    
     def _callback_tbx_post_procs_disp_callback(self, cur_proc, arg_index, strVal):
         cur_proc['ArgsInput'][arg_index] = strVal
         self.lstbx_procs_current.modify_selected_index(self._post_procs_current_disp_text(cur_proc))
@@ -654,7 +653,8 @@ class ListBoxScrollBar:
         self.listbox.selection_clear(0, END)
         #Select new item
         self.listbox.select_set(index)
-        self.listbox.event_generate("<<ListboxSelect>>")
+        if generate_selection_event:
+            self.listbox.event_generate("<<ListboxSelect>>")
 
     def modify_selected_index(self, new_text, generate_selection_event = False):
         if self.listbox.size == 0:
