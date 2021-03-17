@@ -17,6 +17,8 @@ from DataExtractorH5single import*
 
 from PostProcessors import*
 
+from functools import partial
+
 class MainForm:
     def __init__(self):
         self.root = tk.Tk()
@@ -203,12 +205,33 @@ class MainForm:
         self.frm_proc_sel.grid(row=0, column=0, sticky='ew')
         #####################
         #
-        ##################
-        #MAIN CODE WINDOW#
+        #####################
+        #MAIN ANALYSIS BLOCK#
         #
-        #Main entry Textbox
-        self.tbx_proc_code = ScrolledText(master=self.frm_analysis)
-        self.tbx_proc_code.grid(row=1, column=0, sticky='news')
+        frm_proc_construction = Frame(master=self.frm_analysis)
+        #
+        ####Process List####
+        frm_proc_list = Frame(master=frm_proc_construction)
+        self.lstbx_procs_current = ListBoxScrollBar(frm_proc_list)
+        self.lstbx_procs_current.frame.grid(row=0, column=0, columnspan=3, padx=10, pady=2, sticky="ews")
+        self.btn_proc_list_up = Button(frm_proc_list, text="▲")#, command=self._)
+        self.btn_proc_list_up.grid(row=1, column=0)
+        self.btn_proc_list_down = Button(frm_proc_list, text="▼")#, command=self._)
+        self.btn_proc_list_down.grid(row=1, column=1)
+        self.btn_proc_list_down = Button(frm_proc_list, text="➕", command=self._event_btn_post_proc_add)
+        self.btn_proc_list_down.grid(row=1, column=2)
+        #
+        frm_proc_list.grid(row=0, column=0, padx=10, pady=2, sticky="ews")
+        #
+        ####Analysis Display Window####
+        self.frm_proc_disp = Frame(master=frm_proc_construction)
+        self.frm_proc_disp.grid(row=0, column=1, padx=10, pady=2, sticky="ews")
+        self.frm_proc_disp_children = []    #Tkinter's frame children enumeration is a bit strange...
+        #
+        #
+        frm_proc_construction.columnconfigure(0, weight=1)
+        frm_proc_construction.columnconfigure(1, weight=1)
+        frm_proc_construction.grid(row=1, column=0, sticky='news')
         #
         #Output Textbox and update button
         frm_proc_output_tbx = Frame(master=self.frm_analysis)
@@ -219,8 +242,8 @@ class MainForm:
         self.btn_proc_update_plot = Button(frm_proc_output_tbx, text="Update plot", command=self._event_btn_PPupdate_plot)
         self.btn_proc_update_plot.grid(row=0, column=2)
         #
-        frm_proc_output_tbx.grid(row=2, column=0, sticky='news')    
-        ##################
+        frm_proc_output_tbx.grid(row=2, column=0, sticky='news')
+        #####################
         #
         self.frm_analysis.columnconfigure(0, weight=1)
         self.frm_analysis.rowconfigure(0, weight=0)
@@ -256,10 +279,13 @@ class MainForm:
         self.cmbx_dep_var.update_vals(self.dep_vars)
 
         #Setup available postprocessors
-        self.cur_post_procs = PostProcessors.get_all_post_processors()
-        self.lstbx_procs.update_vals(self.cur_post_procs.keys())
+        self.post_procs_all = PostProcessors.get_all_post_processors()
+        self.lstbx_procs.update_vals(self.post_procs_all.keys())
         self.lstbx_procs.listbox.bind("<<ListboxSelect>>", self._event_lstbxPPfunction_changed)
-        self.cmds_to_execute = ""
+        #Currently selected postprocessors
+        self.cur_post_procs = []
+        self.lstbx_procs_current.listbox.bind("<<ListboxSelect>>", self._event_lstbx_proc_current_changed)
+        self.cur_post_proc_output = "dFinal"
 
     def main_loop(self):
         while True:
@@ -318,38 +344,201 @@ class MainForm:
         self.plot_main.set_colour_key(self.colour_maps[self.cmbx_ckey.get_sel_val(True)])
 
     def _event_lstbxPPfunction_changed(self, event):
-        self.lbl_proc_sel_desc.Label['text'] = "Description: " + self.cur_post_procs[self.lstbx_procs.get_sel_val()].get_description()
+        self.lbl_proc_sel_desc.Label['text'] = "Description: " + self.post_procs_all[self.lstbx_procs.get_sel_val()].get_description()
     def _event_btn_PPfunction_add(self):
         cur_func = self.lstbx_procs.get_sel_val()
-        cur_func_obj = self.cur_post_procs[self.lstbx_procs.get_sel_val()]
+        cur_func_obj = self.post_procs_all[self.lstbx_procs.get_sel_val()]
         ret_vals = str(tuple(cur_func_obj.get_return_data_names()))[1:-1]
         self.tbx_proc_code.insert(tk.INSERT, f'{ret_vals} = {cur_func}{tuple(cur_func_obj.get_types())}'.replace('\'',''))
+
+    def _post_procs_current_disp_text(self, cur_proc):
+        '''
+        Generates the string shown in each entry in the ListBox of current processes used in the post-processing.
+
+        Inputs:
+            - cur_proc - Current process to be displayed. It is simply one of the tuples in the array self.cur_post_procs.
+        '''
+        #Filter to only show the data arguments
+        arr_args_in = []
+        for ind, cur_arg in enumerate(cur_proc['ProcessObj'].get_input_args()):
+            if cur_arg[1] == 'data':
+                arr_args_in += [cur_proc['ArgsInput'][ind]]
+        arr_args_in = tuple(arr_args_in)
+        #
+        arr_args_out = []
+        for ind, cur_arg in enumerate(cur_proc['ProcessObj'].get_output_args()):
+            if cur_arg[1] == 'data':
+                arr_args_out += [cur_proc['ArgsOutput'][ind]]
+        arr_args_out = tuple(arr_args_out)
+        #
+        #If all arguments are to be shown, comment the above and uncomment that below:
+        # arr_args_in = tuple(cur_proc['ArgsInput'])
+        # arr_args_out = tuple(cur_proc['ArgsOutput'])
+        #Note that it also has to be changed in callback functions like _callback_tbx_post_procs_disp_callback_Int etc...
+
+        cur_str = ""
+        cur_str += str(arr_args_in)
+        cur_str += "→"
+        cur_str += cur_proc['ProcessName']
+        cur_str += "→"
+        cur_str += str(arr_args_out)
+        return cur_str.replace('\'','')
+    def _post_procs_fill_current(self, sel_index = -1):
+        cur_proc_strs = []
+        for cur_proc in self.cur_post_procs:
+            cur_proc_strs += [self._post_procs_current_disp_text(cur_proc)]
+        cur_proc_strs += ["Final Output: "+self.cur_post_proc_output]
+
+        self.lstbx_procs_current.update_vals(cur_proc_strs)
+        if sel_index != -1:
+            self.lstbx_procs_current.select_index(sel_index)
+
+    def _post_procs_disp_clear(self):
+        for cur_child_ui_elem in self.frm_proc_disp_children[::-1]:
+            cur_child_ui_elem.grid_forget()
+            cur_child_ui_elem.destroy()
+        self.frm_proc_disp_children = []
+
+    
+    def _callback_tbx_post_procs_disp_callback(self, cur_proc, arg_index, strVal):
+        cur_proc['ArgsInput'][arg_index] = strVal
+        self.lstbx_procs_current.modify_selected_index(self._post_procs_current_disp_text(cur_proc))
+        return True
+    def _callback_tbx_post_procs_disp_callback_Int(self, cur_proc, arg_index, strVal):
+        #Check for positive or negative integers...
+        if strVal.isdigit() or (strVal.startswith('-') and strVal[1:].isdigit()):
+            cur_proc['ArgsInput'][arg_index] = int(strVal)
+            #No need to update the listbox if the non-data arguments are not shown
+            # self.lstbx_procs_current.modify_selected_index(self._post_procs_current_disp_text(cur_proc))
+            self.root.bell()
+            return True
+        else:
+            return False
+    def _callback_tbx_post_procs_disp_outputs_callback(self, cur_proc, arg_index, strVal):
+        cur_proc['ArgsOutput'][arg_index] = strVal
+        self.lstbx_procs_current.modify_selected_index(self._post_procs_current_disp_text(cur_proc))
+        return True
+    def _callback_tbx_post_procs_disp_final_output_callback(self, strVal):
+        self.cur_post_proc_output = strVal
+        self.lstbx_procs_current.modify_selected_index("Final Output: "+self.cur_post_proc_output)
+        return True
+    def _post_procs_disp_activate(self):
+        cur_ind = self.lstbx_procs_current.get_sel_val(True)
+
+        #Selected the Final Output entry
+        row_off = 0
+        if cur_ind == len(self.cur_post_procs):
+            lbl_procs = Label(self.frm_proc_disp, text = "Output dataset")
+            lbl_procs.grid(row=row_off, column=0)
+            self.frm_proc_disp_children.append(lbl_procs)
+            #
+            tbx_proc_output = ttk.Entry(self.frm_proc_disp, validate="key")  #validate can be validate="focusout" as well
+            tbx_proc_output.insert(END, self.cur_post_proc_output)
+            tbx_proc_output['validatecommand'] = (tbx_proc_output.register( partial(self._callback_tbx_post_procs_disp_final_output_callback) ), "%P")
+            tbx_proc_output.grid(row=row_off, column=1)
+            self.frm_proc_disp_children.append(tbx_proc_output)
+            return
+
+        #Selected a process in the post-processing chain
+        cur_proc = self.cur_post_procs[cur_ind]
+        
+        row_off = 0
+        for ind, cur_arg in enumerate(cur_proc['ProcessObj'].get_input_args()):
+            lbl_procs = Label(self.frm_proc_disp, text = cur_arg[0])
+            lbl_procs.grid(row=row_off, column=0)
+            self.frm_proc_disp_children.append(lbl_procs)
+            #
+            tbx_proc_output = ttk.Entry(self.frm_proc_disp, validate="key")  #validate can be validate="focusout" as well
+            tbx_proc_output.insert(END, cur_proc['ArgsInput'][ind])
+            if cur_arg[1] == 'int':
+                tbx_proc_output['validatecommand'] = (tbx_proc_output.register( partial(self._callback_tbx_post_procs_disp_callback_Int, cur_proc, ind) ), "%P")
+            else:
+                tbx_proc_output['validatecommand'] = (tbx_proc_output.register( partial(self._callback_tbx_post_procs_disp_callback, cur_proc, ind) ), "%P")
+            tbx_proc_output.grid(row=row_off, column=1)
+            self.frm_proc_disp_children.append(tbx_proc_output)
+            #
+            row_off += 1
+        lbl_procs = Label(self.frm_proc_disp, text = "Outputs:")
+        lbl_procs.grid(row=row_off, column=0)
+        self.frm_proc_disp_children.append(lbl_procs)
+        row_off += 1
+        for ind, cur_arg in enumerate(cur_proc['ProcessObj'].get_output_args()):
+            lbl_procs = Label(self.frm_proc_disp, text = cur_arg[0])
+            lbl_procs.grid(row=row_off, column=0)
+            self.frm_proc_disp_children.append(lbl_procs)
+            #
+            tbx_proc_output = ttk.Entry(self.frm_proc_disp, validate="key")  #validate can be validate="focusout" as well
+            tbx_proc_output.insert(END, cur_proc['ArgsOutput'][ind])
+            #These are data/variable names - thus, they require no validation as they are simply strings...
+            tbx_proc_output['validatecommand'] = (tbx_proc_output.register( partial(self._callback_tbx_post_procs_disp_outputs_callback, cur_proc, ind) ), "%P")
+            tbx_proc_output.grid(row=row_off, column=1)
+            self.frm_proc_disp_children.append(tbx_proc_output)
+            #
+            row_off += 1
+
+            
+    def _event_btn_post_proc_add(self):
+        cur_func = self.lstbx_procs.get_sel_val()
+        cur_func_obj = self.post_procs_all[cur_func]
+        self.cur_post_procs += [{
+            'ArgsInput'   : cur_func_obj.get_default_input_args(),
+            'ArgsOutput'  : cur_func_obj.get_default_output_args(),
+            'ProcessName' : cur_func,
+            'ProcessObj'  : cur_func_obj
+        }]
+        self._post_procs_fill_current(len(self.cur_post_procs)-1)
+    def _event_lstbx_proc_current_changed(self, event):
+        self._post_procs_disp_clear()
+        self._post_procs_disp_activate()
 
     def _event_btn_PPupdate_plot(self):
         self.cmds_to_execute = ""
         #Function declarations
-        for cur_key in self.cur_post_procs.keys():
-            self.cmds_to_execute += f'{cur_key} = self.cur_post_procs[\'{cur_key}\']\n'
+        for cur_key in self.post_procs_all.keys():
+            self.cmds_to_execute += f'{cur_key} = self.post_procs_all[\'{cur_key}\']\n'
         #Compile post-processing commands
         self.cmds_to_execute += self.tbx_proc_code.get("1.0", tk.END) + '\n'
         cur_output_var = self.tbx_proc_output.get()
         self.cmds_to_execute += f'global cur_data; cur_data={cur_output_var}'
 
     def update_plot_post_proc(self):
-        if self.cmds_to_execute == "":
+        if len(self.cur_post_procs) == 0:
             return
 
         #Data declarations
         data = {}
         for cur_dep_var in self.dep_vars:
-            if self.plot_dim_type.get() == 1:
+            if len(self.plot_main.curData) == 2:
                 data[cur_dep_var] = {'x': self.plot_main.curData[0], 'data': self.plot_main.curData[1]}
             else:
                 data[cur_dep_var] = {'x': self.plot_main.curData[0], 'y': self.plot_main.curData[1], 'data': self.plot_main.curData[2]}
-        #Execute post-processing commands
-        exec(self.cmds_to_execute)
+
+        #Process each command sequentially
+        for cur_proc in self.cur_post_procs:
+            #Process input arguments
+            cur_args = cur_proc['ArgsInput'][:]
+            for ind, cur_arg in enumerate(cur_proc['ProcessObj'].get_input_args()):
+                if cur_arg[1] == 'data':
+                    if cur_args[ind] in data:
+                        cur_args[ind] = data[cur_args[ind]]
+                    else:
+                        #Fire error message
+                        return
+            #Execute command
+            output_tuples = cur_proc['ProcessObj'](*cur_args)
+            #Map the outputs into the dictionary
+            for ind, cur_arg in enumerate(cur_proc['ProcessObj'].get_output_args()):
+                if cur_arg[1] == 'data':
+                    data[cur_proc['ArgsOutput'][ind]] = output_tuples[ind]
+        
+        if self.cur_post_proc_output in data:
+            cur_data = data[self.cur_post_proc_output]
+        else:
+            #Fire error message
+            return
+
         #Update plots
-        if self.plot_dim_type.get() == 1:
+        if len(self.plot_main.curData) == 2:
             self.plot_main.plot_data_1D(cur_data['x'], cur_data['data'])
         else:
             self.plot_main.plot_data_2D(cur_data['x'], cur_data['y'], cur_data['data'])
@@ -421,14 +610,17 @@ class ListBoxScrollBar:
         self.listbox.config(yscrollcommand = self.scrollbar.set)
         self.scrollbar.config(command = self.listbox.yview)
 
-    def update_vals(self, list_vals, cols=None):
-        #Get current selection if applicable:
-        cur_sel = [m for m in self.listbox.curselection()]
-        #Select first element by default...
-        if len(cur_sel) == 0:
-            cur_sel = 0
+    def update_vals(self, list_vals, cols=None, select_index=-1):
+        if select_index == -1:
+            #Get current selection if applicable:
+            cur_sel = [m for m in self.listbox.curselection()]
+            #Select first element by default...
+            if len(cur_sel) == 0:
+                cur_sel = 0
+            else:
+                cur_sel = cur_sel[0]
         else:
-            cur_sel = cur_sel[0]
+            cur_sel = select_index
 
         #Clear listbox
         self.listbox.delete(0,'end')
@@ -456,6 +648,21 @@ class ListBoxScrollBar:
         else:
             values = [self.listbox.get(m) for m in self.listbox.curselection()]
         return values[0]
+
+    def select_index(self, index, generate_selection_event = True):
+        #Clear selection
+        self.listbox.selection_clear(0, END)
+        #Select new item
+        self.listbox.select_set(index)
+        self.listbox.event_generate("<<ListboxSelect>>")
+
+    def modify_selected_index(self, new_text, generate_selection_event = False):
+        if self.listbox.size == 0:
+            return
+        cur_ind = self.get_sel_val(True)
+        self.listbox.insert(cur_ind, new_text)
+        self.listbox.delete(cur_ind+1)
+        self.select_index(cur_ind, generate_selection_event)
 
 class ColourMap:
     def __init__(self):

@@ -8,15 +8,39 @@ class PostProcessors:
     def get_description(self):
         raise NotImplementedError()
 
-    def get_types(self):
+    def get_input_args(self):
         raise NotImplementedError()
 
-    def get_return_data_names(self):
+    def get_output_args(self):
         raise NotImplementedError()
 
     def __call__(self, *args):
         raise NotImplementedError()
 
+    def _process_default_args(self, leArgs, use_default_data_names = False):
+        cur_args = leArgs
+        ret_vals = []
+        m = 0
+        for cur_arg in cur_args:
+            if cur_arg[1] == 'int':
+                ret_vals.append(cur_arg[2])
+            elif cur_arg[1] == 'data':
+                if use_default_data_names:
+                    ret_vals.append(cur_arg[2])
+                else:
+                    ret_vals.append(f'd{m}')
+                m += 1
+            elif cur_arg[1] == 'float':
+                ret_vals.append(cur_arg[2])
+            else:
+                assert False, "There appears to be an unhandled data-type: " + cur_arg
+        return ret_vals
+
+    def get_default_input_args(self):
+        return self._process_default_args(self.get_input_args())
+
+    def get_default_output_args(self):
+        return self._process_default_args(self.get_output_args(), True)
 
     @staticmethod
     def get_all_post_processors():
@@ -29,11 +53,11 @@ class PP_IQ2AmpPhase(PostProcessors):
     def get_description(self):
         return "Converts I and Q channel data into Amplitude and Phase (radians) data."
 
-    def get_types(self):
-        return ['data', 'data']
+    def get_input_args(self):
+        return [('I-channel', 'data'), ('Q-channel', 'data')]
 
-    def get_return_data_names(self):
-        return ['amp', 'phs']
+    def get_output_args(self):
+        return [('Amplitude', 'data', 'amp'), ('Phase', 'data', 'phs')]
 
     def __call__(self, *args):
         assert args[0]['data'].shape == args[1]['data'].shape, "Data has inconsistent shapes"
@@ -58,15 +82,19 @@ class PP_MedianFilterX(PostProcessors):
     def get_description(self):
         return "Runs an N-point median filter across the x-axes of the plots. It is good at removing spikes in the data. The ends are kept and thus, the dataset size remains the same."
 
-    def get_types(self):
-        return ['data', 'int']
+    def get_input_args(self):
+        return [('Input dataset', 'data'), ('Window size', 'int', 3)]
 
-    def get_return_data_names(self):
-        return ['datFilt']
+    def get_output_args(self):
+        return [('Filtered data', 'data', 'filtData')]
 
     def __call__(self, *args):
         ret_val = {}
         ret_val['x'] = args[0]['x']
-        ret_val['y'] = args[0]['y']
-        ret_val['data'] = scipy.ndimage.median_filter(args[0]['data'], size=(1, args[1]))
-        return ret_val
+
+        if 'y' in args[0]:
+            ret_val['y'] = args[0]['y']
+            ret_val['data'] = scipy.ndimage.median_filter(args[0]['data'], size=(1, args[1]))
+        else:
+            ret_val['data'] = scipy.ndimage.median_filter(args[0]['data'], size=(args[1]))
+        return (ret_val, )
