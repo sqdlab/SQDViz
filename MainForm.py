@@ -29,8 +29,6 @@ class MainForm:
         self.frame_RHS = Frame(master=self.pw_main_LR_UI)
         self.pw_main_LR_UI.add(self.frame_LHS,stretch='always')
         self.pw_main_LR_UI.add(self.frame_RHS,stretch='always')
-        # self.frame_LHS.pack(fill=BOTH, expand=1)
-        # self.frame_RHS.pack(fill=BOTH, expand=1)
         self.pw_main_LR_UI.pack(fill=BOTH, expand=1)
 
         ###################
@@ -42,9 +40,9 @@ class MainForm:
         #MAIN PLOT DISPLAY#
         ###################
         self.pw_plots_main = PanedWindow(orient =tk.VERTICAL, master=self.frame_LHS, sashwidth=3, bg = "#000077", bd = 0)
-        self.plot_main = PlotFrame(self.root)
+        self.plot_main = PlotFrame(self.pw_plots_main)
         self.pw_plots_main.add(self.plot_main.Frame,stretch='always')
-        self.plot_slice = PlotFrame(self.root)
+        self.plot_slice = PlotFrame(self.pw_plots_main)
         self.pw_plots_main.add(self.plot_slice.Frame)
         #
         self.pw_plots_main.grid(row=0,column=0,sticky='nsew')
@@ -56,7 +54,7 @@ class MainForm:
         #########################
         #
         #Overall frame broken up into columns containing individual frames...
-        self.frame_plot_sel = LabelFrame(master=self.frame_LHS, text = "Plot Parameters")
+        self.frame_plot_sel = Frame(master=self.frame_LHS)#, text = "Plot Parameters")
         #
         #######################################
         #RADIO BUTTONS FOR PLOT TYPE SELECTION#
@@ -79,38 +77,31 @@ class MainForm:
         lblfrm_axis_sel = LabelFrame(master=self.frame_plot_sel, text="Plot Axes", padx=10, pady=10)
         #x-Axis Combobox
         self.cmbx_axis_x = ComboBoxEx(lblfrm_axis_sel, "x-axis")
-        self.cmbx_axis_x.Frame.grid(row=0, column=0, sticky='se')
+        self.cmbx_axis_x.Frame.grid(row=0, column=0, sticky='se', pady=2)
         #y-Axis Combobox
         self.cmbx_axis_y = ComboBoxEx(lblfrm_axis_sel, "y-axis")
-        self.cmbx_axis_y.Frame.grid(row=1, column=0, sticky='se')
+        self.cmbx_axis_y.Frame.grid(row=1, column=0, sticky='se', pady=2)
         #Dependent Variables Combobox
         self.cmbx_dep_var = ComboBoxEx(lblfrm_axis_sel, "Dep. Var.")
-        self.cmbx_dep_var.Frame.grid(row=2, column=0, sticky='se')
+        self.cmbx_dep_var.Frame.grid(row=2, column=0, sticky='se', pady=2)
+        #Colour Scheme ComboBox
+        self.cmbx_ckey = ComboBoxEx(lblfrm_axis_sel, "Scheme")
+        self.cmbx_ckey.Frame.grid(row=3, column=0, sticky='se', pady=2)
+        self.cmbx_ckey.combobox.bind("<<ComboboxSelected>>", self._event_cmbxCKey_changed)
         #
         lblfrm_axis_sel.rowconfigure(0, weight=1)
         lblfrm_axis_sel.rowconfigure(1, weight=1)
         lblfrm_axis_sel.rowconfigure(2, weight=1)
+        lblfrm_axis_sel.rowconfigure(3, weight=1)
         lblfrm_axis_sel.columnconfigure(0, weight=1)
         #
         lblfrm_axis_sel.grid(row=1,column=0)
         #########################
         #
-        ######################
-        #COLOUR KEY SELECTION#
-        lblfrm_ckey_sel = LabelFrame(master=self.frame_plot_sel, text="Colour key", padx=10, pady=10)
-        #x-Axis Combobox
-        self.cmbx_ckey = ComboBoxEx(lblfrm_ckey_sel, "Scheme")
-        self.cmbx_ckey.Frame.grid(row=0, column=0, sticky='se')
-        self.cmbx_ckey.combobox.bind("<<ComboboxSelected>>", self._event_cmbxCKey_changed)
-        #
-        lblfrm_ckey_sel.grid(row=2,column=0)
-        ######################
-        #
         self.frame_plot_sel.grid(row=1,column=0,sticky='sew')
         self.frame_plot_sel.columnconfigure(0, weight=1)
         self.frame_plot_sel.rowconfigure(0, weight=1)
         self.frame_plot_sel.rowconfigure(1, weight=1)
-        self.frame_plot_sel.rowconfigure(2, weight=1)
         #
         #
         #################
@@ -123,7 +114,7 @@ class MainForm:
         self.lbl_slice_vars_val.grid(row=1, column=0, columnspan=3)
         #
         self.sldr_slice_vars_val = ttk.Scale(lblfrm_slice_vars, from_=0, to=1, orient='horizontal', command=self._event_sldr_slice_vars_val_changed)
-        self.sldr_slice_vars_val.grid(row=2, column=0, columnspan=3, sticky='sew')
+        self.sldr_slice_vars_val.grid(row=2, column=0, sticky='sew')
         self.btn_slice_vars_val_inc = tk.Button(lblfrm_slice_vars, text="❰", command=self._event_btn_slice_vars_val_dec)
         self.btn_slice_vars_val_dec = tk.Button(lblfrm_slice_vars, text="❱", command=self._event_btn_slice_vars_val_inc)
         self.btn_slice_vars_val_inc.grid(row=2,column=1)
@@ -132,13 +123,12 @@ class MainForm:
         lblfrm_slice_vars.columnconfigure(0, weight=1)
         lblfrm_slice_vars.columnconfigure(1, weight=0)
         lblfrm_slice_vars.columnconfigure(2, weight=0)
-        lblfrm_slice_vars.grid(row=1,column=1, rowspan=3,sticky='sew')
+        lblfrm_slice_vars.grid(row=0,column=1, rowspan=2,sticky='sew')
         #################
         #
         self.frame_LHS.rowconfigure(0, weight=1)
         self.frame_LHS.rowconfigure(1, weight=0)
         self.frame_LHS.columnconfigure(0, weight=1)
-        self.frame_LHS.columnconfigure(1, weight=1)
         #########################
 
 
@@ -146,7 +136,7 @@ class MainForm:
         #    RHS FRAME
         ###################
         #
-        self.pw_RHS = PanedWindow(orient=tk.VERTICAL, master=self.frame_RHS, sashwidth=3, bg = "#000077", bd = 0)
+        self.pw_RHS = PanedWindow(master=self.frame_RHS, orient=tk.VERTICAL, sashwidth=3, bg = "#000077", bd = 0)
         #
         ################
         #CURSOR DISPLAY#
@@ -199,34 +189,32 @@ class MainForm:
         #
         #####################
         #PROCESSOR SELECTION#
-        self.frm_proc_sel = Frame(master=self.frm_analysis)
+        frm_proc_sel = Frame(master=self.frm_analysis)
         #
         #List of Post-Processors
-        frm_proc_sel_lstbxs = Frame(master=self.frm_proc_sel)
-        self.lbl_procs = LabelFrame(frm_proc_sel_lstbxs, text = "Postprocessors")
-        self.lbl_procs.grid(row=0, column=0)
-        self.lstbx_procs = ListBoxScrollBar(frm_proc_sel_lstbxs)
-        self.lstbx_procs.frame.grid(row=1,column=0)
-        frm_proc_sel_lstbxs.rowconfigure(0, weight=0)
-        frm_proc_sel_lstbxs.rowconfigure(1, weight=1)
-        frm_proc_sel_lstbxs.columnconfigure(0, weight=1)
-        frm_proc_sel_lstbxs.grid(row=0, column=0)
+        frm_proc_sel_lstbxs_add_btn = Frame(master=frm_proc_sel)
+        self.lstbx_procs = ListBoxScrollBar(frm_proc_sel_lstbxs_add_btn)
+        self.lstbx_procs.frame.grid(row=0,column=0, sticky='news')
+        self.btn_proc_sel_add = Button(frm_proc_sel_lstbxs_add_btn, text="Add Function", command=self._event_btn_post_proc_add)
+        self.btn_proc_sel_add.grid(row=1, column=0)
+        frm_proc_sel_lstbxs_add_btn.rowconfigure(0, weight=1)
+        frm_proc_sel_lstbxs_add_btn.rowconfigure(1, weight=0)
+        frm_proc_sel_lstbxs_add_btn.columnconfigure(0, weight=1)
+        frm_proc_sel_lstbxs_add_btn.grid(row=0, column=0, sticky='news')
         #
         #Description and Add Button
-        frm_proc_sel_desc_addbtn = Frame(master=self.frm_proc_sel)
-        self.lbl_proc_sel_desc = LabelMultiline(frm_proc_sel_desc_addbtn)
+        frm_proc_sel_desc = Frame(master=frm_proc_sel)
+        self.lbl_proc_sel_desc = LabelMultiline(frm_proc_sel_desc)
         self.lbl_proc_sel_desc.Frame.grid(row=0,column=0, sticky='news')
-        self.btn_proc_sel_add = Button(frm_proc_sel_desc_addbtn, text="Add Function", command=self._event_btn_post_proc_add)
-        self.btn_proc_sel_add.grid(row=1, column=0)
-        frm_proc_sel_desc_addbtn.rowconfigure(0, weight=1)
-        frm_proc_sel_desc_addbtn.rowconfigure(1, weight=0)
-        frm_proc_sel_desc_addbtn.columnconfigure(0, weight=1)
-        frm_proc_sel_desc_addbtn.grid(row=0, column=1, sticky='news')
+        frm_proc_sel_desc.rowconfigure(0, weight=1)
+        frm_proc_sel_desc.columnconfigure(0, weight=1)
+        frm_proc_sel_desc.grid(row=0, column=1, sticky='news')
         #
-        self.frm_proc_sel.columnconfigure(0, weight=0)
-        self.frm_proc_sel.columnconfigure(1, weight=1)
+        frm_proc_sel.rowconfigure(0, weight=1)
+        frm_proc_sel.columnconfigure(0, weight=0)
+        frm_proc_sel.columnconfigure(1, weight=1)
         #
-        self.frm_proc_sel.grid(row=0, column=0, sticky='ew')
+        frm_proc_sel.grid(row=0, column=0, sticky='news')
         #####################
         #
         #####################
@@ -250,7 +238,7 @@ class MainForm:
         frm_proc_list.columnconfigure(0, weight=1)
         frm_proc_list.columnconfigure(1, weight=1)
         frm_proc_list.columnconfigure(2, weight=1)
-        frm_proc_list.grid(row=0, column=0, padx=10, pady=2, sticky="ews")
+        frm_proc_list.grid(row=0, column=0, padx=10, pady=2, sticky="news")
         #
         ####Analysis Display Window####
         self.frm_proc_disp = Frame(master=frm_proc_construction)
@@ -258,6 +246,7 @@ class MainForm:
         self.frm_proc_disp_children = []    #Tkinter's frame children enumeration is a bit strange...
         #
         #
+        frm_proc_construction.rowconfigure(0, weight=1)
         frm_proc_construction.columnconfigure(0, weight=1)
         frm_proc_construction.columnconfigure(1, weight=1)
         frm_proc_construction.grid(row=1, column=0, sticky='news')
@@ -271,7 +260,7 @@ class MainForm:
         #####################
         #
         self.frm_analysis.columnconfigure(0, weight=1)
-        self.frm_analysis.rowconfigure(0, weight=0)
+        self.frm_analysis.rowconfigure(0, weight=1)
         self.frm_analysis.rowconfigure(1, weight=1)
         self.frm_analysis.rowconfigure(2, weight=0)
         self.frm_analysis.pack(side="left", fill="both", expand=True)
@@ -280,7 +269,6 @@ class MainForm:
         #
         self.pw_RHS.grid(row=0,column=0,sticky='nsew')
         self.frame_RHS.rowconfigure(0, weight=1)
-        self.frame_RHS.rowconfigure(1, weight=1)
         self.frame_RHS.columnconfigure(0, weight=1)
 
         #Setup colour maps
