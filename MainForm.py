@@ -92,7 +92,7 @@ class MainForm:
         lblfrm_axis_sel.rowconfigure(2, weight=1)
         lblfrm_axis_sel.columnconfigure(0, weight=1)
         #
-        lblfrm_axis_sel.grid(row=0,column=1)
+        lblfrm_axis_sel.grid(row=1,column=0)
         #########################
         #
         ######################
@@ -103,18 +103,29 @@ class MainForm:
         self.cmbx_ckey.Frame.grid(row=0, column=0, sticky='se')
         self.cmbx_ckey.combobox.bind("<<ComboboxSelected>>", self._event_cmbxCKey_changed)
         #
-        lblfrm_ckey_sel.grid(row=0,column=2)
+        lblfrm_ckey_sel.grid(row=2,column=0)
         ######################
         #
         self.frame_plot_sel.grid(row=1,column=0,sticky='sew')
-        self.frame_plot_sel.rowconfigure(0, weight=1)
         self.frame_plot_sel.columnconfigure(0, weight=1)
-        self.frame_plot_sel.columnconfigure(1, weight=1)
-        self.frame_plot_sel.columnconfigure(2, weight=1)
+        self.frame_plot_sel.rowconfigure(0, weight=1)
+        self.frame_plot_sel.rowconfigure(1, weight=1)
+        self.frame_plot_sel.rowconfigure(2, weight=1)
+        #
+        #
+        #################
+        #VARIABLE SLICER#
+        lblfrm_slice_vars = LabelFrame(master=self.frame_plot_sel, text="Parameter slice", padx=10, pady=10)
+        self.lstbx_slice_vars = ListBoxScrollBar(lblfrm_slice_vars)
+        self.lstbx_slice_vars.frame.grid(row=0, column=0, columnspan=2, padx=10, pady=2, sticky="ews")
+        #
+        lblfrm_slice_vars.grid(row=1,column=1, rowspan=3,sticky='sew')
+        #################
         #
         self.frame_LHS.rowconfigure(0, weight=1)
         self.frame_LHS.rowconfigure(1, weight=0)
         self.frame_LHS.columnconfigure(0, weight=1)
+        self.frame_LHS.columnconfigure(1, weight=1)
         #########################
 
 
@@ -273,9 +284,9 @@ class MainForm:
         self.data_thread_pool = ThreadPool(processes=1)
         self.data_extractor = DataExtractorH5single("swmr.h5", self.data_thread_pool)
         #
-        indep_vars = self.data_extractor.get_independent_vars()
-        self.cmbx_axis_x.update_vals(indep_vars)
-        self.cmbx_axis_y.update_vals(indep_vars)
+        self.indep_vars = self.data_extractor.get_independent_vars()
+        self.cmbx_axis_x.update_vals(self.indep_vars)
+        self.cmbx_axis_y.update_vals(self.indep_vars)
         self.dep_vars = self.data_extractor.get_dependent_vars()
         self.cmbx_dep_var.update_vals(self.dep_vars)
 
@@ -294,14 +305,16 @@ class MainForm:
     def main_loop(self):
         while True:
             if self.data_extractor.data_ready():
-                new_data = self.data_extractor.get_data()
+                (indep_params, final_data, dict_rem_slices) = self.data_extractor.get_data()
                 cur_var_ind = self.dep_vars.index(self.cmbx_dep_var.get_sel_val())
-                if len(new_data[0]) == 1:
-                    self.plot_main.plot_data_1D(new_data[0][0], new_data[1][cur_var_ind])
+                if len(indep_params) == 1:
+                    self.plot_main.plot_data_1D(indep_params[0], final_data[cur_var_ind])
                     self.update_plot_post_proc()
                 else:
-                    self.plot_main.plot_data_2D(new_data[0][0], new_data[0][1], new_data[1][cur_var_ind].T)    #Transposed due to pcolor's indexing requirements...
+                    self.plot_main.plot_data_2D(indep_params[0], indep_params[1], final_data[cur_var_ind].T)    #Transposed due to pcolor's indexing requirements...
                     self.update_plot_post_proc()
+                #Populate the slice candidates
+                self.lstbx_slice_vars.update_vals(dict_rem_slices.keys())
             
             self.plot_main.Canvas.draw()
             self.plot_main.pop_plots_with_cursor_cuts(self.plot_cursorX, self.plot_cursorY, self.lstbx_cursors)
@@ -310,10 +323,10 @@ class MainForm:
 
             #Setup new request if no new data is being fetched
             if not self.data_extractor.isFetching:
+                xVar = self.cmbx_axis_x.get_sel_val()
                 if self.plot_dim_type.get() == 1:
-                    self.data_extractor.fetch_data({'slice_vars':[self.cmbx_axis_x.get_sel_val()]})
+                    self.data_extractor.fetch_data({'slice_vars':[xVar]})
                 else:
-                    xVar = self.cmbx_axis_x.get_sel_val()
                     yVar = self.cmbx_axis_y.get_sel_val()
                     if xVar != yVar:
                         self.data_extractor.fetch_data({'slice_vars':[xVar, yVar]})

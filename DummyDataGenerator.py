@@ -3,24 +3,27 @@ import numpy as np
 
 hf = h5py.File("swmr.h5", 'w', libver='latest')
 
+flux_vals = np.arange(0,3.5,0.1)
 freq_vals = np.arange(-5,5,0.1)
 ampl_vals = np.arange(0.1,10,0.1)
 
 grp_params = hf.create_group('parameters')
-grp_params.create_dataset('freq',data=np.hstack([0,freq_vals]))
-grp_params.create_dataset('ampl',data=np.hstack([1,ampl_vals]))
+grp_params.create_dataset('flux',data=np.hstack([0,flux_vals]))
+grp_params.create_dataset('freq',data=np.hstack([1,freq_vals]))
+grp_params.create_dataset('ampl',data=np.hstack([2,ampl_vals]))
 
 grp_meas = hf.create_group('measurements')
 grp_meas.create_dataset('I',data=np.hstack([0]))
 grp_meas.create_dataset('Q',data=np.hstack([1]))
 
-sweep_arrays = [freq_vals, ampl_vals]
-sweep_grids = np.meshgrid(*sweep_arrays)
-sweep_grids = np.array(sweep_grids).T.reshape(-1,len(sweep_arrays))
+sweep_arrays = [flux_vals, freq_vals, ampl_vals]
+sweep_grids = np.meshgrid(*sweep_arrays, indexing='ij')
+sweep_grids = np.vstack([x.flatten() for x in sweep_grids]).T
+# sweep_grids = np.array(sweep_grids).T.reshape(-1,len(sweep_arrays))
 
 #data_arr = np.stack([(1-np.exp(-sweep_grids[:,1]))/(1+sweep_grids[:,0]**2/sweep_grids[:,1])]).T
-data_arr = np.stack([(1-np.exp(-sweep_grids[:,1]))/(1+sweep_grids[:,0]**2/sweep_grids[:,1]),
-                 -0.5*(1-np.exp(-sweep_grids[:,1]))/(1+sweep_grids[:,0]**2/sweep_grids[:,1])]).T
+data_arr = np.stack([(1-np.exp(-sweep_grids[:,2]))/(1+(sweep_grids[:,1]-sweep_grids[:,0])**2/sweep_grids[:,2]),
+                 -0.5*(1-np.exp(-sweep_grids[:,2]))/(1+(sweep_grids[:,1]-sweep_grids[:,0])**2/sweep_grids[:,2])]).T
 
 arr = np.zeros(data_arr.shape)
 arr[:] = np.nan

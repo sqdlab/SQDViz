@@ -32,6 +32,7 @@ class DataExtractorH5single(DataExtractor):
         self.param_vals = [None]*len(temp_param_names)
         param_slicer = [None]*len(temp_param_names)
         indep_params = [None]*len(params['slice_vars'])
+        dict_rem_slices = {}
         for cur_param in temp_param_names:
             cur_ind = int(self.hdf5_file["parameters"][cur_param][0])
             self._param_names[cur_ind] = cur_param
@@ -40,6 +41,7 @@ class DataExtractorH5single(DataExtractor):
                 param_slicer[cur_ind] = np.s_[0:]
                 indep_params[params['slice_vars'].index(cur_param)] = self.param_vals[cur_ind]
             else:
+                dict_rem_slices[cur_param] = self.param_vals[cur_ind]
                 param_slicer[cur_ind] = np.s_[0]   #TODO: Change appropriately later to actual slicing index...
 
         cur_shape = [len(x) for x in self.param_vals] + [len(self._dep_params)]
@@ -64,7 +66,7 @@ class DataExtractorH5single(DataExtractor):
             if self._param_names.index(params['slice_vars'][0]) > self._param_names.index(params['slice_vars'][1]):
                 for ind in range(len(self._dep_params)):
                     final_data[ind] = final_data[ind].T       #TODO: Suboptimal? Do this when generating the slices above?
-        return (indep_params, final_data)
+        return (indep_params, final_data, dict_rem_slices)
 
     def get_independent_vars(self):
         return list(self._param_names)
