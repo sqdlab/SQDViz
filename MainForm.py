@@ -117,11 +117,21 @@ class MainForm:
         #VARIABLE SLICER#
         lblfrm_slice_vars = LabelFrame(master=self.frame_plot_sel, text="Parameter slice", padx=10, pady=10)
         self.lstbx_slice_vars = ListBoxScrollBar(lblfrm_slice_vars)
-        self.lstbx_slice_vars.frame.grid(row=0, column=0, columnspan=2, padx=10, pady=2, sticky="ews")
+        self.lstbx_slice_vars.frame.grid(row=0, column=0, columnspan=3, padx=10, pady=2, sticky="ews")
+        #
+        self.lbl_slice_vars_val = tk.Label(lblfrm_slice_vars, text="Min|Max:")
+        self.lbl_slice_vars_val.grid(row=1, column=0, columnspan=3)
         #
         self.sldr_slice_vars_val = ttk.Scale(lblfrm_slice_vars, from_=0, to=1, orient='horizontal', command=self._event_sldr_slice_vars_val_changed)
-        self.sldr_slice_vars_val.grid(row=1,column=0, rowspan=3,sticky='sew')
+        self.sldr_slice_vars_val.grid(row=2, column=0, columnspan=3, sticky='sew')
+        self.btn_slice_vars_val_inc = tk.Button(lblfrm_slice_vars, text="❰", command=self._event_btn_slice_vars_val_dec)
+        self.btn_slice_vars_val_dec = tk.Button(lblfrm_slice_vars, text="❱", command=self._event_btn_slice_vars_val_inc)
+        self.btn_slice_vars_val_inc.grid(row=2,column=1)
+        self.btn_slice_vars_val_dec.grid(row=2,column=2)
         #
+        lblfrm_slice_vars.columnconfigure(0, weight=1)
+        lblfrm_slice_vars.columnconfigure(1, weight=0)
+        lblfrm_slice_vars.columnconfigure(2, weight=0)
         lblfrm_slice_vars.grid(row=1,column=1, rowspan=3,sticky='sew')
         #################
         #
@@ -401,14 +411,30 @@ class MainForm:
         
         Returns a string of the text to display - i.e. Name current-val (min-val, max-val).
         '''
-        min_val = np.min(cur_slice_var_params[1])
-        max_val = np.max(cur_slice_var_params[1])
         cur_val = cur_slice_var_params[1][cur_slice_var_params[0]]
-        return f"{slice_var_name}: {cur_val} ({min_val}, {max_val})"
+        return f"{slice_var_name}: {cur_val}"
+    def _update_label_slice_var_val(self):
+        #Update Label
+        cur_var_name = self.cur_slice_var_keys_lstbx[self.lstbx_slice_vars.get_sel_val(True)]
+        min_val = np.min(self.dict_var_slices[cur_var_name][1])
+        max_val = np.max(self.dict_var_slices[cur_var_name][1])
+        self.lbl_slice_vars_val['text'] = f"Range: {min_val}➜{max_val}"
     def _event_lstbx_slice_vars_changed(self, event):
         cur_slice_var = self.dict_var_slices[self.cur_slice_var_keys_lstbx[self.lstbx_slice_vars.get_sel_val(True)]]
         self.sldr_slice_vars_val.configure(to=cur_slice_var[1].size-1)
         self.sldr_slice_vars_val.set(cur_slice_var[0])
+        self._update_label_slice_var_val()
+    def _event_btn_slice_vars_val_inc(self):
+        cur_var_name = self.cur_slice_var_keys_lstbx[self.lstbx_slice_vars.get_sel_val(True)]
+        cur_len = self.dict_var_slices[cur_var_name][1].size
+        cur_ind = int(float(self.sldr_slice_vars_val.get()))
+        if cur_ind + 1 < cur_len:
+            self.sldr_slice_vars_val.set(cur_ind + 1)
+    def _event_btn_slice_vars_val_dec(self):
+        cur_var_name = self.cur_slice_var_keys_lstbx[self.lstbx_slice_vars.get_sel_val(True)]
+        cur_ind = int(float(self.sldr_slice_vars_val.get()))
+        if cur_ind > 0:
+            self.sldr_slice_vars_val.set(cur_ind - 1)
     def _event_sldr_slice_vars_val_changed(self, value):
         self._slice_vars_set_val(int(float(value)))
     def _slice_vars_set_val(self, new_index):
@@ -419,7 +445,9 @@ class MainForm:
             self.dict_var_slices[cur_var_name] = (new_index, self.dict_var_slices[cur_var_name][1])
             #Update ListBox
             self.lstbx_slice_vars.modify_selected_index(self._slice_Var_disp_text(cur_var_name, self.dict_var_slices[cur_var_name]))
-        
+            #Update Label
+            self._update_label_slice_var_val()
+      
 
     def _event_form_on_key_press(self,event):
         print("you pressed {}".format(event.key))
@@ -710,8 +738,10 @@ class ComboBoxEx:
         self.combobox.event_generate("<<ComboboxSelected>>")
 
     def enable(self):
+        self.lbl_cmbx.configure(state='normal')
         self.combobox.configure(state='normal')
     def disable(self):
+        self.lbl_cmbx.configure(state='disabled')
         self.combobox.configure(state='disabled')
 
     def get_sel_val(self, get_index = False):
