@@ -119,6 +119,12 @@ class MainForm:
         self.lstbx_slice_vars = ListBoxScrollBar(lblfrm_slice_vars)
         self.lstbx_slice_vars.frame.grid(row=0, column=0, columnspan=2, padx=10, pady=2, sticky="ews")
         #
+        self.slice_vars_cur_val = tk.StringVar()
+        self.tbx_slice_vars_val = tk.Entry(lblfrm_slice_vars, textvariable=self.slice_vars_cur_val, validate="focusout", validatecommand=self._callback_tbx_slice_vars_val)
+        # self.tbx_slice_vars_val.insert(END, self.cur_post_proc_output)
+        # self.tbx_slice_vars_val['validatecommand'] = (self.tbx_slice_vars_val.register( self._callback_tbx_slice_vars_val ), "%P")
+        self.tbx_slice_vars_val.grid(row=1, column=0)
+        #
         lblfrm_slice_vars.grid(row=1,column=1, rowspan=3,sticky='sew')
         #################
         #
@@ -270,6 +276,7 @@ class MainForm:
         self.frame_RHS.rowconfigure(1, weight=1)
         self.frame_RHS.columnconfigure(0, weight=1)
 
+        #Setup colour maps
         def_col_maps = [('viridis', "Viridis"), ('afmhot', "AFM Hot"), ('hot', "Hot"), ('gnuplot', "GNU-Plot"), ('coolwarm', "Cool-Warm"), ('seismic', "Seismic"), ('rainbow', "Rainbow")]
         self.colour_maps = []
         for cur_col_map in def_col_maps:
@@ -281,6 +288,7 @@ class MainForm:
         self.plot_main.Canvas.mpl_connect("key_press_event", self._event_form_on_key_press)
         self.plot_main.add_cursor('red')
 
+        #Setup data extraction
         self.data_thread_pool = ThreadPool(processes=1)
         self.data_extractor = DataExtractorH5single("swmr.h5", self.data_thread_pool)
         #
@@ -289,6 +297,11 @@ class MainForm:
         self.cmbx_axis_y.update_vals(self.indep_vars)
         self.dep_vars = self.data_extractor.get_dependent_vars()
         self.cmbx_dep_var.update_vals(self.dep_vars)
+
+        #Setup the slicing variables
+        self.dict_var_slices = {}   #They values are given as: (current index, numpy array of values)
+        self.cur_slice_var_keys_lstbx = []
+        self.lstbx_slice_vars.listbox.bind("<<ListboxSelect>>", self._event_lstbx_slice_vars_changed)
 
         #Setup available postprocessors
         self.post_procs_all = PostProcessors.get_all_post_processors()
@@ -313,8 +326,32 @@ class MainForm:
                 else:
                     self.plot_main.plot_data_2D(indep_params[0], indep_params[1], final_data[cur_var_ind].T)    #Transposed due to pcolor's indexing requirements...
                     self.update_plot_post_proc()
+                #
                 #Populate the slice candidates
-                self.lstbx_slice_vars.update_vals(dict_rem_slices.keys())
+                #
+                cur_lstbx_vals = []
+                prev_dict = self.dict_var_slices.copy()
+                self.dict_var_slices = {}   #Clear previous dictionary and only leave entries if it had previous slices present...
+                #Gather currently selected value so it stays selected
+                cur_sel = self.lstbx_slice_vars.get_sel_val(True)
+                if cur_sel != -1:
+                    cur_var = self.cur_slice_var_keys_lstbx[cur_sel]
+                else:
+                    cur_var = ""
+                cur_sel = -1
+                #Update the current list of slicing variables with the new list...
+                self.cur_slice_var_keys_lstbx = []
+                for m, cur_key in enumerate(dict_rem_slices.keys()):
+                    #Check if key already exists
+                    if cur_key in prev_dict:
+                        self.dict_var_slices[cur_key] = (prev_dict[cur_key][0], dict_rem_slices[cur_key])
+                    else:
+                        self.dict_var_slices[cur_key] = (0, dict_rem_slices[cur_key])
+                    cur_lstbx_vals += [self._slice_Var_disp_text(cur_key, self.dict_var_slices[cur_key])]
+                    self.cur_slice_var_keys_lstbx += [cur_key]
+                    if cur_var == cur_key:
+                        cur_sel = m
+                self.lstbx_slice_vars.update_vals(cur_lstbx_vals, select_index=cur_sel, generate_selection_event=False)
             
             self.plot_main.Canvas.draw()
             self.plot_main.pop_plots_with_cursor_cuts(self.plot_cursorX, self.plot_cursorY, self.lstbx_cursors)
@@ -324,12 +361,15 @@ class MainForm:
             #Setup new request if no new data is being fetched
             if not self.data_extractor.isFetching:
                 xVar = self.cmbx_axis_x.get_sel_val()
+                slice_vars = {}
+                for cur_var in self.dict_var_slices.keys():
+                    slice_vars[cur_var] = self.dict_var_slices[cur_var][0]
                 if self.plot_dim_type.get() == 1:
-                    self.data_extractor.fetch_data({'slice_vars':[xVar]})
+                    self.data_extractor.fetch_data({'axis_vars':[xVar], 'slice_vars':slice_vars})
                 else:
                     yVar = self.cmbx_axis_y.get_sel_val()
                     if xVar != yVar:
-                        self.data_extractor.fetch_data({'slice_vars':[xVar, yVar]})
+                        self.data_extractor.fetch_data({'axis_vars':[xVar, yVar], 'slice_vars':slice_vars})
 
             #tkinter.mainloop()
             # self.root.update_idletasks()
@@ -352,6 +392,53 @@ class MainForm:
             #Move the sash in the paned-window to show the 1D slices
             cur_height = self.pw_plots_main.winfo_height()
             self.pw_plots_main.sash_place(0, 1, int(cur_height*0.8))
+
+
+    def _slice_Var_disp_text(self, slice_var_name, cur_slice_var_params):
+        '''
+        Generates the text to display the summary in the ListBox for slicing variables.
+
+        Input:
+            - slice_var_name       - String name of the current slicing variable to display in the ListBox
+            - cur_slice_var_params - A tuple given as (current index, numpy array of allowed values)
+        
+        Returns a string of the text to display - i.e. Name current-val (min-val, max-val).
+        '''
+        min_val = np.min(cur_slice_var_params[1])
+        max_val = np.max(cur_slice_var_params[1])
+        cur_val = cur_slice_var_params[1][cur_slice_var_params[0]]
+        return f"{slice_var_name}: {cur_val} ({min_val}, {max_val})"
+    def _event_lstbx_slice_vars_changed(self, event):
+        cur_slice_var = self.dict_var_slices[self.cur_slice_var_keys_lstbx[self.lstbx_slice_vars.get_sel_val(True)]]
+        self.slice_vars_cur_val.set(cur_slice_var[1][cur_slice_var[0]])
+    def _callback_tbx_slice_vars_val(self):
+        strVal = self.slice_vars_cur_val.get()
+        #Check if it's a floating-point value
+        if len(strVal) == 0:
+            return True
+        if strVal[0] == '-':
+            if len(strVal) > 1:
+                if not (strVal[1:].replace('.', '', 1).isdigit()):
+                    return False
+            else:
+                return False
+        else:
+            if not (strVal[1:].replace('.', '', 1).isdigit()):
+                    return False
+        self._slice_vars_set_val(float(strVal))
+        return True
+    def _slice_vars_set_val(self, var_val):
+        #Calculate the index of the array with the value closest to the proposed value
+        cur_var_name = self.cur_slice_var_keys_lstbx[self.lstbx_slice_vars.get_sel_val(True)]
+        new_index = np.abs(self.dict_var_slices[cur_var_name][1] - var_val).argmin()
+        if new_index != self.dict_var_slices[cur_var_name][0]:
+            #Update the array index
+            self.dict_var_slices[cur_var_name] = (new_index, self.dict_var_slices[cur_var_name][1])
+            #Update the textbox
+            #self.slice_vars_cur_val.set(self.dict_var_slices[cur_var_name][1][new_index])
+            #Update ListBox
+            self.lstbx_slice_vars.modify_selected_index(self._slice_Var_disp_text(cur_var_name, self.dict_var_slices[cur_var_name]))
+        
 
     def _event_form_on_key_press(self,event):
         print("you pressed {}".format(event.key))
@@ -672,7 +759,7 @@ class ListBoxScrollBar:
         self.listbox.config(yscrollcommand = self.scrollbar.set)
         self.scrollbar.config(command = self.listbox.yview)
 
-    def update_vals(self, list_vals, cols=None, select_index=-1):
+    def update_vals(self, list_vals, cols=None, select_index=-1, generate_selection_event=True):
         if select_index == -1:
             #Get current selection if applicable:
             cur_sel = [m for m in self.listbox.curselection()]
@@ -695,7 +782,8 @@ class ListBoxScrollBar:
                 self.listbox.itemconfig(ind, foreground=cols[ind])
         #Select the prescribed element from above...
         self.listbox.select_set(cur_sel)
-        self.listbox.event_generate("<<ListboxSelect>>")
+        if generate_selection_event:
+            self.listbox.event_generate("<<ListboxSelect>>")
 
     def enable(self):
         self.listbox.configure(state='normal')
@@ -709,7 +797,10 @@ class ListBoxScrollBar:
             values = [m for m in self.listbox.curselection()]
         else:
             values = [self.listbox.get(m) for m in self.listbox.curselection()]
-        return values[0]
+        if len(values) == 0:
+            return -1
+        else:
+            return values[0]
 
     def select_index(self, index, generate_selection_event = True):
         #Clear selection
@@ -720,7 +811,7 @@ class ListBoxScrollBar:
             self.listbox.event_generate("<<ListboxSelect>>")
 
     def modify_selected_index(self, new_text, generate_selection_event = False):
-        if self.listbox.size == 0:
+        if self.listbox.size() == 0:
             return
         cur_ind = self.get_sel_val(True)
         self.listbox.insert(cur_ind, new_text)

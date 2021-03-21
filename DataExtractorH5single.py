@@ -26,23 +26,28 @@ class DataExtractorH5single(DataExtractor):
 
         #!!Note that self._param_names will be reordered when figuring out the parameter indices...!!
 
-        dim_plot = len(params['slice_vars'])
+        dim_plot = len(params['axis_vars'])
 
         temp_param_names = self._param_names[:]
         self.param_vals = [None]*len(temp_param_names)
         param_slicer = [None]*len(temp_param_names)
-        indep_params = [None]*len(params['slice_vars'])
+        indep_params = [None]*len(params['axis_vars'])
         dict_rem_slices = {}
         for cur_param in temp_param_names:
             cur_ind = int(self.hdf5_file["parameters"][cur_param][0])
             self._param_names[cur_ind] = cur_param
             self.param_vals[cur_ind] = self.hdf5_file["parameters"][cur_param][1:]
-            if cur_param in params['slice_vars']:
+            if cur_param in params['axis_vars']:
                 param_slicer[cur_ind] = np.s_[0:]
-                indep_params[params['slice_vars'].index(cur_param)] = self.param_vals[cur_ind]
+                indep_params[params['axis_vars'].index(cur_param)] = self.param_vals[cur_ind]
             else:
                 dict_rem_slices[cur_param] = self.param_vals[cur_ind]
-                param_slicer[cur_ind] = np.s_[0]   #TODO: Change appropriately later to actual slicing index...
+                cur_slice_ind = 0
+                if cur_param in params['slice_vars']:
+                    #Ensure slice index is in range
+                    if params['slice_vars'][cur_param] < self.param_vals[cur_ind].size:
+                        cur_slice_ind = params['slice_vars'][cur_param]
+                param_slicer[cur_ind] = np.s_[cur_slice_ind]   #TODO: Change appropriately later to actual slicing index...
 
         cur_shape = [len(x) for x in self.param_vals] + [len(self._dep_params)]
         self.cur_data = self.dset[:].reshape(tuple(x for x in cur_shape))
@@ -63,7 +68,7 @@ class DataExtractorH5single(DataExtractor):
         
         if len(final_data[0].shape) == 2:
             #Check if data needs to be transposed
-            if self._param_names.index(params['slice_vars'][0]) > self._param_names.index(params['slice_vars'][1]):
+            if self._param_names.index(params['axis_vars'][0]) > self._param_names.index(params['axis_vars'][1]):
                 for ind in range(len(self._dep_params)):
                     final_data[ind] = final_data[ind].T       #TODO: Suboptimal? Do this when generating the slices above?
         return (indep_params, final_data, dict_rem_slices)
