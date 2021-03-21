@@ -309,6 +309,9 @@ class MainForm:
         self.cur_post_proc_output = "dFinal"
         #Setup current post-processing analysis ListBox and select the first entry (the final output entry)
         self._post_procs_fill_current(0)
+        #Kick-start the UI elements
+        self._event_lstbxPPfunction_changed(None)
+        self._event_lstbx_proc_current_changed(None)
 
     def main_loop(self):
         while True:
@@ -346,8 +349,12 @@ class MainForm:
                     self.cur_slice_var_keys_lstbx += [cur_key]
                     if cur_var == cur_key:
                         cur_sel = m
-                self.lstbx_slice_vars.update_vals(cur_lstbx_vals, select_index=cur_sel, generate_selection_event=False)
-            
+                if len(cur_lstbx_vals) > 0 and cur_sel == -1:
+                    #In the beginning, it's a good idea to select the element to kick-start the UI elements
+                    self.lstbx_slice_vars.update_vals(cur_lstbx_vals, select_index=0, generate_selection_event=True)
+                else:
+                    self.lstbx_slice_vars.update_vals(cur_lstbx_vals, select_index=cur_sel, generate_selection_event=False)
+
             self.plot_main.Canvas.draw()
             self.plot_main.pop_plots_with_cursor_cuts(self.plot_cursorX, self.plot_cursorY, self.lstbx_cursors)
             self.plot_cursorX.Canvas.draw()
