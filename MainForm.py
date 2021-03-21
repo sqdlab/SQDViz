@@ -119,11 +119,8 @@ class MainForm:
         self.lstbx_slice_vars = ListBoxScrollBar(lblfrm_slice_vars)
         self.lstbx_slice_vars.frame.grid(row=0, column=0, columnspan=2, padx=10, pady=2, sticky="ews")
         #
-        self.slice_vars_cur_val = tk.StringVar()
-        self.tbx_slice_vars_val = tk.Entry(lblfrm_slice_vars, textvariable=self.slice_vars_cur_val, validate="focusout", validatecommand=self._callback_tbx_slice_vars_val)
-        # self.tbx_slice_vars_val.insert(END, self.cur_post_proc_output)
-        # self.tbx_slice_vars_val['validatecommand'] = (self.tbx_slice_vars_val.register( self._callback_tbx_slice_vars_val ), "%P")
-        self.tbx_slice_vars_val.grid(row=1, column=0)
+        self.sldr_slice_vars_val = ttk.Scale(lblfrm_slice_vars, from_=0, to=1, orient='horizontal', command=self._event_sldr_slice_vars_val_changed)
+        self.sldr_slice_vars_val.grid(row=1,column=0, rowspan=3,sticky='sew')
         #
         lblfrm_slice_vars.grid(row=1,column=1, rowspan=3,sticky='sew')
         #################
@@ -410,32 +407,16 @@ class MainForm:
         return f"{slice_var_name}: {cur_val} ({min_val}, {max_val})"
     def _event_lstbx_slice_vars_changed(self, event):
         cur_slice_var = self.dict_var_slices[self.cur_slice_var_keys_lstbx[self.lstbx_slice_vars.get_sel_val(True)]]
-        self.slice_vars_cur_val.set(cur_slice_var[1][cur_slice_var[0]])
-    def _callback_tbx_slice_vars_val(self):
-        strVal = self.slice_vars_cur_val.get()
-        #Check if it's a floating-point value
-        if len(strVal) == 0:
-            return True
-        if strVal[0] == '-':
-            if len(strVal) > 1:
-                if not (strVal[1:].replace('.', '', 1).isdigit()):
-                    return False
-            else:
-                return False
-        else:
-            if not (strVal[1:].replace('.', '', 1).isdigit()):
-                    return False
-        self._slice_vars_set_val(float(strVal))
-        return True
-    def _slice_vars_set_val(self, var_val):
+        self.sldr_slice_vars_val.configure(to=cur_slice_var[1].size-1)
+        self.sldr_slice_vars_val.set(cur_slice_var[0])
+    def _event_sldr_slice_vars_val_changed(self, value):
+        self._slice_vars_set_val(int(float(value)))
+    def _slice_vars_set_val(self, new_index):
         #Calculate the index of the array with the value closest to the proposed value
         cur_var_name = self.cur_slice_var_keys_lstbx[self.lstbx_slice_vars.get_sel_val(True)]
-        new_index = np.abs(self.dict_var_slices[cur_var_name][1] - var_val).argmin()
         if new_index != self.dict_var_slices[cur_var_name][0]:
             #Update the array index
             self.dict_var_slices[cur_var_name] = (new_index, self.dict_var_slices[cur_var_name][1])
-            #Update the textbox
-            #self.slice_vars_cur_val.set(self.dict_var_slices[cur_var_name][1][new_index])
             #Update ListBox
             self.lstbx_slice_vars.modify_selected_index(self._slice_Var_disp_text(cur_var_name, self.dict_var_slices[cur_var_name]))
         
