@@ -39,13 +39,13 @@ class MainForm:
         ###################
         #MAIN PLOT DISPLAY#
         ###################
-        self.pw_plots_main = PanedWindow(orient =tk.VERTICAL, master=self.frame_LHS, sashwidth=3, bg = "#000077", bd = 0)
-        self.plot_main = PlotFrame(self.pw_plots_main)
-        self.pw_plots_main.add(self.plot_main.Frame,stretch='always')
-        self.plot_slice = PlotFrame(self.pw_plots_main)
-        self.pw_plots_main.add(self.plot_slice.Frame)
+        # self.pw_plots_main = PanedWindow(orient =tk.VERTICAL, master=self.frame_LHS, sashwidth=3, bg = "#000077", bd = 0)
+        self.plot_main = PlotFrame(self.frame_LHS)
+        # self.pw_plots_main.add(self.plot_main.Frame,stretch='always')
+        # self.plot_slice = PlotFrame(self.pw_plots_main)
+        # self.pw_plots_main.add(self.plot_slice.Frame)
         #
-        self.pw_plots_main.grid(row=0,column=0,sticky='nsew')
+        self.plot_main.Frame.grid(row=0,column=0,sticky='nsew')
         ###################
         #
         #
@@ -54,61 +54,93 @@ class MainForm:
         #########################
         #
         #Overall frame broken up into columns containing individual frames...
-        self.frame_plot_sel = Frame(master=self.frame_LHS)#, text = "Plot Parameters")
+        frame_cursors_all = Frame(master=self.frame_LHS)#, text = "Plot Parameters")
         #
-        #######################################
-        #RADIO BUTTONS FOR PLOT TYPE SELECTION#
-        frm_plttyp = Frame(master=self.frame_plot_sel)
-        cur_row = 0
+        ################
+        #CURSOR DISPLAY#
+        ################
         #
-        #Labelled frame container with the radio buttons stored in the variable self.plot_dim_type
-        lblfrm_plot_type = LabelFrame(frm_plttyp, text = "Plot Type", padx=10, pady=10)
-        lblfrm_plot_type.grid(row=cur_row,column=0)
-        self.plot_dim_type = tk.IntVar()
-        self.plot_dim_type.set(1)
-        tk.Radiobutton(lblfrm_plot_type, text="1D Plot", padx = 20, variable=self.plot_dim_type, value=1, command=self._event_plotsel_changed).grid(row=0, column=0)
-        tk.Radiobutton(lblfrm_plot_type, text="2D Plot", padx = 20, variable=self.plot_dim_type, value=2, command=self._event_plotsel_changed).grid(row=1, column=0)
+        self.frame_cursors = LabelFrame(master=frame_cursors_all, text = "Cursors")
         #
-        frm_plttyp.grid(row=0,column=0)
-        #######################################
+        ################
+        #CURSOR LISTBOX#
+        self.lstbx_cursors = ListBoxScrollBar(self.frame_cursors)
+        self.lstbx_cursors.frame.grid(row=0, column=0, columnspan=2, padx=10, pady=2, sticky="ews")
+        ################
+        #
+        ####################
+        #ADD/REMOVE BUTTONS#
+        self.btn_cursor_add = tk.Button(master=self.frame_cursors, text ="Add cursor", command = lambda: self.plot_main.add_cursor())
+        self.btn_cursor_add.grid(row=1, column=0)
+        self.btn_cursor_add = tk.Button(master=self.frame_cursors, text ="Delete cursor", command = lambda: self.plot_main.Cursors.pop(self.lstbx_cursors.get_sel_val(True)))
+        self.btn_cursor_add.grid(row=1, column=1)
+        ####################
+        #
+        self.frame_cursors.rowconfigure(0, weight=1)
+        self.frame_cursors.rowconfigure(1, weight=0)
+        self.frame_cursors.columnconfigure(0, weight=1)
+        self.frame_cursors.grid(row=1, column=0, sticky='ew')
+        ################
+        #
+        frame_cursors_all.grid(row=1,column=0,sticky='sew')
+        frame_cursors_all.columnconfigure(0, weight=1)
+        frame_cursors_all.rowconfigure(0, weight=1)
+        #
+        self.frame_LHS.rowconfigure(0, weight=1)
+        self.frame_LHS.rowconfigure(1, weight=0)
+        self.frame_LHS.columnconfigure(0, weight=1)
+        #########################
+
+
+        ###################
+        #    RHS FRAME
+        ###################
+        #
+        frm_plotparams_varslicer = Frame(master=self.frame_RHS, padx=10, pady=2)
         #
         #########################
         #AXIS VARIABLE SELECTION#
-        lblfrm_axis_sel = LabelFrame(master=self.frame_plot_sel, text="Plot Axes", padx=10, pady=10)
+        lblfrm_plot_params = LabelFrame(master=frm_plotparams_varslicer, text="Plot Parameters", padx=10, pady=10)
+        #
+        #Labelled frame container with the radio buttons stored in the variable self.plot_dim_type
+        self.plot_dim_type = tk.IntVar()
+        self.plot_dim_type.set(1)
+        lblfrm_axis_sel = LabelFrame(master=lblfrm_plot_params, text="Plot Axes", padx=10, pady=2)
+        tk.Radiobutton(lblfrm_axis_sel, text="1D Plot", padx = 20, variable=self.plot_dim_type, value=1, command=self._event_plotsel_changed).grid(row=0, column=0)
+        tk.Radiobutton(lblfrm_axis_sel, text="2D Plot", padx = 20, variable=self.plot_dim_type, value=2, command=self._event_plotsel_changed).grid(row=1, column=0)
+        lblfrm_axis_sel.grid(row=0, column=0, pady=2)
+        #
+        cmbx_width = 13
         #x-Axis Combobox
-        self.cmbx_axis_x = ComboBoxEx(lblfrm_axis_sel, "x-axis")
-        self.cmbx_axis_x.Frame.grid(row=0, column=0, sticky='se', pady=2)
+        self.cmbx_axis_x = ComboBoxEx(lblfrm_plot_params, "x-axis", width=cmbx_width)
+        self.cmbx_axis_x.Frame.grid(row=1, column=0, sticky='se', pady=2)
         #y-Axis Combobox
-        self.cmbx_axis_y = ComboBoxEx(lblfrm_axis_sel, "y-axis")
-        self.cmbx_axis_y.Frame.grid(row=1, column=0, sticky='se', pady=2)
+        self.cmbx_axis_y = ComboBoxEx(lblfrm_plot_params, "y-axis", width=cmbx_width)
+        self.cmbx_axis_y.Frame.grid(row=2, column=0, sticky='se', pady=2)
         #Dependent Variables Combobox
-        self.cmbx_dep_var = ComboBoxEx(lblfrm_axis_sel, "Dep. Var.")
-        self.cmbx_dep_var.Frame.grid(row=2, column=0, sticky='se', pady=2)
+        self.cmbx_dep_var = ComboBoxEx(lblfrm_plot_params, "Dep. Var.", width=cmbx_width)
+        self.cmbx_dep_var.Frame.grid(row=3, column=0, sticky='se', pady=2)
         #Colour Scheme ComboBox
-        self.cmbx_ckey = ComboBoxEx(lblfrm_axis_sel, "Scheme")
-        self.cmbx_ckey.Frame.grid(row=3, column=0, sticky='se', pady=2)
+        self.cmbx_ckey = ComboBoxEx(lblfrm_plot_params, "Scheme", width=cmbx_width)
+        self.cmbx_ckey.Frame.grid(row=4, column=0, sticky='se', pady=2)
         self.cmbx_ckey.combobox.bind("<<ComboboxSelected>>", self._event_cmbxCKey_changed)
         #
-        lblfrm_axis_sel.rowconfigure(0, weight=1)
-        lblfrm_axis_sel.rowconfigure(1, weight=1)
-        lblfrm_axis_sel.rowconfigure(2, weight=1)
-        lblfrm_axis_sel.rowconfigure(3, weight=1)
-        lblfrm_axis_sel.columnconfigure(0, weight=1)
+        self.chkbx_hist_eq = tk.Checkbutton(lblfrm_plot_params, text = "Histogram equalisation")
+        self.chkbx_hist_eq.grid(row=5, column=0, sticky='se', pady=2)
         #
-        lblfrm_axis_sel.grid(row=1,column=0)
+        for m in range(6):
+            lblfrm_plot_params.rowconfigure(m, weight=1)
+        lblfrm_plot_params.columnconfigure(0, weight=1)
+        #
+        lblfrm_plot_params.grid(row=0,column=0,sticky='nes')
         #########################
-        #
-        self.frame_plot_sel.grid(row=1,column=0,sticky='sew')
-        self.frame_plot_sel.columnconfigure(0, weight=1)
-        self.frame_plot_sel.rowconfigure(0, weight=1)
-        self.frame_plot_sel.rowconfigure(1, weight=1)
         #
         #
         #################
         #VARIABLE SLICER#
-        lblfrm_slice_vars = LabelFrame(master=self.frame_plot_sel, text="Parameter slice", padx=10, pady=10)
+        lblfrm_slice_vars = LabelFrame(master=frm_plotparams_varslicer, text="Parameter slice", padx=10, pady=10)
         self.lstbx_slice_vars = ListBoxScrollBar(lblfrm_slice_vars)
-        self.lstbx_slice_vars.frame.grid(row=0, column=0, columnspan=3, padx=10, pady=2, sticky="ews")
+        self.lstbx_slice_vars.frame.grid(row=0, column=0, columnspan=3, padx=10, pady=2, sticky="news")
         #
         self.lbl_slice_vars_val = tk.Label(lblfrm_slice_vars, text="Min|Max:")
         self.lbl_slice_vars_val.grid(row=1, column=0, columnspan=3)
@@ -123,73 +155,24 @@ class MainForm:
         lblfrm_slice_vars.columnconfigure(0, weight=1)
         lblfrm_slice_vars.columnconfigure(1, weight=0)
         lblfrm_slice_vars.columnconfigure(2, weight=0)
-        lblfrm_slice_vars.grid(row=0,column=1, rowspan=2,sticky='sew')
+        lblfrm_slice_vars.grid(row=0,column=1,sticky='news')
         #################
         #
-        self.frame_LHS.rowconfigure(0, weight=1)
-        self.frame_LHS.rowconfigure(1, weight=0)
-        self.frame_LHS.columnconfigure(0, weight=1)
-        #########################
-
-
-        ###################
-        #    RHS FRAME
-        ###################
+        frm_plotparams_varslicer.grid(row=0,column=0, sticky='new')
+        frm_plotparams_varslicer.columnconfigure(0, weight=0)
+        frm_plotparams_varslicer.columnconfigure(1, weight=1)
+        frm_plotparams_varslicer.rowconfigure(0, weight=1)
         #
-        self.pw_RHS = PanedWindow(master=self.frame_RHS, orient=tk.VERTICAL, sashwidth=3, bg = "#000077", bd = 0)
-        #
-        ################
-        #CURSOR DISPLAY#
-        ################
-        #
-        self.frame_cursors = LabelFrame(master=self.frame_RHS, text = "Cursors")
-        self.pw_RHS.add(self.frame_cursors, stretch='always')
-        #
-        #################
-        #CURSOR CUT PLOTS
-        self.frame_cursor_plots = Frame(master=self.frame_cursors)
-        self.plot_cursorX = PlotFrame(self.frame_cursor_plots)
-        self.plot_cursorY = PlotFrame(self.frame_cursor_plots)
-        self.plot_cursorX.Frame.grid(row=0, column=0, sticky="news")
-        self.plot_cursorY.Frame.grid(row=0, column=1, sticky="news")
-        self.frame_cursor_plots.rowconfigure(0, weight=1)
-        self.frame_cursor_plots.columnconfigure(0, weight=1)
-        self.frame_cursor_plots.columnconfigure(1, weight=1)
-        #
-        self.frame_cursor_plots.grid(row=0, column=0, columnspan=2, padx=10, pady=2, sticky="news")
-        #
-        ################
-        #CURSOR LISTBOX#
-        self.lstbx_cursors = ListBoxScrollBar(self.frame_cursors)
-        self.lstbx_cursors.frame.grid(row=1, column=0, columnspan=2, padx=10, pady=2, sticky="ews")
-        ################
-        #
-        ####################
-        #ADD/REMOVE BUTTONS#
-        self.btn_cursor_add = tk.Button(master=self.frame_cursors, text ="Add cursor", command = lambda: self.plot_main.add_cursor())
-        self.btn_cursor_add.grid(row=2, column=0)
-        self.btn_cursor_add = tk.Button(master=self.frame_cursors, text ="Delete cursor", command = lambda: self.plot_main.Cursors.pop(self.lstbx_cursors.get_sel_val(True)))
-        self.btn_cursor_add.grid(row=2, column=1)
-        ####################
-        #
-        self.frame_cursors.rowconfigure(0, weight=1)
-        self.frame_cursors.rowconfigure(1, weight=0)
-        self.frame_cursors.rowconfigure(2, weight=0)
-        self.frame_cursors.columnconfigure(0, weight=1)
-        self.frame_cursors.columnconfigure(1, weight=1)
-        ################
         #
         #################
         #ANALYSIS WINDOW#
         #################
         #
-        self.lblfrm_analysis = LabelFrame(master=self.pw_RHS, text = "Analysis & postprocessing")
-        self.pw_RHS.add(self.lblfrm_analysis, stretch='always')
-        self.frm_analysis = Frame(self.lblfrm_analysis)
+        lblfrm_analysis = LabelFrame(master=self.frame_RHS, text = "Analysis & postprocessing", padx=10, pady=2)
         #
         #####################
         #PROCESSOR SELECTION#
-        frm_proc_sel = Frame(master=self.frm_analysis)
+        frm_proc_sel = Frame(master=lblfrm_analysis)
         #
         #List of Post-Processors
         frm_proc_sel_lstbxs_add_btn = Frame(master=frm_proc_sel)
@@ -214,13 +197,13 @@ class MainForm:
         frm_proc_sel.columnconfigure(0, weight=0)
         frm_proc_sel.columnconfigure(1, weight=1)
         #
-        frm_proc_sel.grid(row=0, column=0, sticky='news')
+        frm_proc_sel.grid(row=0, column=0, sticky='ew')
         #####################
         #
         #####################
         #MAIN ANALYSIS BLOCK#
         #
-        frm_proc_construction = Frame(master=self.frm_analysis)
+        frm_proc_construction = Frame(master=lblfrm_analysis)
         #
         ####Process List####
         frm_proc_list = Frame(master=frm_proc_construction)
@@ -238,7 +221,7 @@ class MainForm:
         frm_proc_list.columnconfigure(0, weight=1)
         frm_proc_list.columnconfigure(1, weight=1)
         frm_proc_list.columnconfigure(2, weight=1)
-        frm_proc_list.grid(row=0, column=0, padx=10, pady=2, sticky="news")
+        frm_proc_list.grid(row=0, column=0, sticky="news")
         #
         ####Analysis Display Window####
         self.frm_proc_disp = Frame(master=frm_proc_construction)
@@ -248,27 +231,27 @@ class MainForm:
         #
         frm_proc_construction.rowconfigure(0, weight=1)
         frm_proc_construction.columnconfigure(0, weight=1)
-        frm_proc_construction.columnconfigure(1, weight=1)
-        frm_proc_construction.grid(row=1, column=0, sticky='news')
+        frm_proc_construction.columnconfigure(1, weight=0)
+        frm_proc_construction.grid(row=1, column=0, sticky='ew')
         #
         #Output Textbox and update button
-        frm_proc_output_tbx = Frame(master=self.frm_analysis)
+        frm_proc_output_tbx = Frame(master=lblfrm_analysis)
         self.lbl_procs_errors = Label(frm_proc_output_tbx, text = "")
         self.lbl_procs_errors.grid(row=0, column=0)
         #
         frm_proc_output_tbx.grid(row=2, column=0, sticky='news')
         #####################
         #
-        self.frm_analysis.columnconfigure(0, weight=1)
-        self.frm_analysis.rowconfigure(0, weight=1)
-        self.frm_analysis.rowconfigure(1, weight=1)
-        self.frm_analysis.rowconfigure(2, weight=0)
-        self.frm_analysis.pack(side="left", fill="both", expand=True)
+        lblfrm_analysis.columnconfigure(0, weight=1)
+        lblfrm_analysis.rowconfigure(0, weight=1)
+        lblfrm_analysis.rowconfigure(1, weight=1)
+        lblfrm_analysis.rowconfigure(2, weight=0)
+        lblfrm_analysis.grid(row=1, column=0, padx=10, pady=2, sticky='news')
         #
         #################
         #
-        self.pw_RHS.grid(row=0,column=0,sticky='nsew')
-        self.frame_RHS.rowconfigure(0, weight=1)
+        self.frame_RHS.rowconfigure(0, weight=0)
+        self.frame_RHS.rowconfigure(1, weight=1)
         self.frame_RHS.columnconfigure(0, weight=1)
 
         #Setup colour maps
@@ -355,10 +338,10 @@ class MainForm:
                 else:
                     self.lstbx_slice_vars.update_vals(cur_lstbx_vals, select_index=cur_sel, generate_selection_event=False)
 
+            self.plot_main.pop_plots_with_cursor_cuts(self.lstbx_cursors)
             self.plot_main.Canvas.draw()
-            self.plot_main.pop_plots_with_cursor_cuts(self.plot_cursorX, self.plot_cursorY, self.lstbx_cursors)
-            self.plot_cursorX.Canvas.draw()
-            self.plot_cursorY.Canvas.draw()
+            # self.lbl_proc_sel_desc.Label['text'] = self.lbl_proc_sel_desc.Label['text'][:]
+            # self.lbl_proc_sel_desc.Label.update_idletasks()
 
             #Setup new request if no new data is being fetched
             if not self.data_extractor.isFetching:
@@ -391,9 +374,6 @@ class MainForm:
             #2D Plot
             self.cmbx_axis_y.enable()
             self.cmbx_ckey.enable()
-            #Move the sash in the paned-window to show the 1D slices
-            cur_height = self.pw_plots_main.winfo_height()
-            self.pw_plots_main.sash_place(0, 1, int(cur_height*0.8))
 
 
     def _slice_Var_disp_text(self, slice_var_name, cur_slice_var_params):
@@ -533,6 +513,8 @@ class MainForm:
     def _post_procs_disp_activate(self):
         cur_ind = self.lstbx_procs_current.get_sel_val(True)
 
+        tbx_width = 9
+
         #Selected the Final Output entry
         row_off = 0
         if cur_ind == len(self.cur_post_procs):
@@ -540,7 +522,7 @@ class MainForm:
             lbl_procs.grid(row=row_off, column=0)
             self.frm_proc_disp_children.append(lbl_procs)
             #
-            tbx_proc_output = ttk.Entry(self.frm_proc_disp, validate="key")  #validate can be validate="focusout" as well
+            tbx_proc_output = ttk.Entry(self.frm_proc_disp, validate="key", width=tbx_width)  #validate can be validate="focusout" as well
             tbx_proc_output.insert(END, self.cur_post_proc_output)
             tbx_proc_output['validatecommand'] = (tbx_proc_output.register( partial(self._callback_tbx_post_procs_disp_final_output_callback) ), "%P")
             tbx_proc_output.grid(row=row_off, column=1)
@@ -562,7 +544,7 @@ class MainForm:
             lbl_procs.grid(row=row_off, column=0)
             self.frm_proc_disp_children.append(lbl_procs)
             #
-            tbx_proc_output = ttk.Entry(self.frm_proc_disp, validate="key")  #validate can be validate="focusout" as well
+            tbx_proc_output = ttk.Entry(self.frm_proc_disp, validate="key", width=tbx_width)  #validate can be validate="focusout" as well
             tbx_proc_output.insert(END, cur_proc['ArgsInput'][ind])
             if cur_arg[1] == 'int':
                 tbx_proc_output['validatecommand'] = (tbx_proc_output.register( partial(self._callback_tbx_post_procs_disp_callback_Int, cur_proc, ind) ), "%P")
@@ -581,7 +563,7 @@ class MainForm:
             lbl_procs.grid(row=row_off, column=0)
             self.frm_proc_disp_children.append(lbl_procs)
             #
-            tbx_proc_output = ttk.Entry(self.frm_proc_disp, validate="key")  #validate can be validate="focusout" as well
+            tbx_proc_output = ttk.Entry(self.frm_proc_disp, validate="key", width=tbx_width)  #validate can be validate="focusout" as well
             tbx_proc_output.insert(END, cur_proc['ArgsOutput'][ind])
             #These are data/variable names - thus, they require no validation as they are simply strings...
             tbx_proc_output['validatecommand'] = (tbx_proc_output.register( partial(self._callback_tbx_post_procs_disp_outputs_callback, cur_proc, ind) ), "%P")
@@ -636,6 +618,18 @@ class MainForm:
             self.btn_proc_list_del.configure(state='disabled')
         else:
             self.btn_proc_list_del.configure(state='normal')
+
+    def _open_file():
+        # file type
+        filetypes = (
+            ('HDF5', '*.h5'),
+            ('TSV Data Files', '*.dat')
+            #('All files', '*.*')
+        )
+        # show the open file dialog
+        f = fd.askopenfile(filetypes=filetypes)
+        # read the text file and show its content on the Text
+        text.insert('1.0', f.readlines())
 
     def _event_btn_PPupdate_plot(self):
         self.cmds_to_execute = ""
@@ -702,12 +696,12 @@ class MainForm:
                         # Fatal Python Error: PyEval_RestoreThread: NULL tstate
     
 class ComboBoxEx:
-    def __init__(self, parent_ui_element, label):
+    def __init__(self, parent_ui_element, label, **kwargs):
         self.Frame = Frame(master=parent_ui_element)
 
         self.lbl_cmbx = Label(self.Frame, text = label)
         self.lbl_cmbx.grid(row=0, column=0, sticky="nes")
-        self.combobox = ttk.Combobox(self.Frame)
+        self.combobox = ttk.Combobox(self.Frame, **kwargs)
         self.combobox.grid(row=0, column=1, sticky="news")
 
         self.Frame.columnconfigure(0, weight=0) #Label is of constant size
@@ -853,8 +847,17 @@ class PlotFrame:
     def __init__(self, root_ui):
         self.fig = Figure(figsize=(1,1))
         t = np.arange(0, 3, .01)
-        self.ax = self.fig.gca() #fig.add_subplot(111)
+        #self.ax = self.fig.gca() #fig.add_subplot(111)
         # ax.plot(t, 2 * np.sin(2 * np.pi * t))
+
+        gs = self.fig.add_gridspec(2, 2,  width_ratios=(7, 2), height_ratios=(2, 7),
+                      left=0.1, right=0.9, bottom=0.1, top=0.9,
+                      wspace=0.05, hspace=0.05)
+        self.ax = self.fig.add_subplot(gs[1, 0])
+        self.ax_sX = self.fig.add_subplot(gs[0, 0], sharex=self.ax)
+        self.ax_sY = self.fig.add_subplot(gs[1, 1], sharey=self.ax)
+        self.ax_sX.tick_params(labelbottom=False, bottom=False)
+        self.ax_sY.tick_params(labelleft=False, left=False)
 
         self.Frame = Frame(master=root_ui)
 
@@ -914,6 +917,14 @@ class PlotFrame:
         self._cur_2D = False
         self.update()
 
+    def _plot_1D(self, cur_ax, dataX, dataY, clearAxis=True, colour = None):
+        if clearAxis:
+            cur_ax.clear()
+        if colour != None:
+            cur_ax.plot(dataX, dataY, color = colour)
+        else:
+            cur_ax.plot(dataX, dataY)
+
     def plot_data_2D(self, dataX, dataY, dataZ):
         self.curData = (dataX, dataY, dataZ)
         self._cur_2D = True
@@ -929,11 +940,7 @@ class PlotFrame:
             self.ax.pcolor(self.curData[0], self.curData[1], self.curData[2], shading='nearest', cmap=self._cur_col_key.CMap)
             self.update()
 
-
-    def find_nearest(array, value):
-        return idx
-
-    def pop_plots_with_cursor_cuts(self, plot_cursor_x, plot_cursor_y, lstbx_cursor_info):
+    def pop_plots_with_cursor_cuts(self, lstbx_cursor_info):
         #Check if a cursor has moved...
         no_changes = True
         for cur_curse in self.Cursors:
@@ -955,8 +962,8 @@ class PlotFrame:
                 curse_cols += [cur_curse.colour]
                 cutX = int((np.abs(self.curData[0] - cur_curse.cur_coord[0])).argmin())
                 cutY = int((np.abs(self.curData[1] - cur_curse.cur_coord[1])).argmin())
-                plot_cursor_x.plot_data_1D(self.curData[0], self.curData[2][cutY,:], clear_first_plot, cur_curse.colour)
-                plot_cursor_y.plot_data_1D(self.curData[1], self.curData[2][:,cutX], clear_first_plot, cur_curse.colour)
+                self._plot_1D(self.ax_sX, self.curData[0], self.curData[2][cutY,:], clear_first_plot, cur_curse.colour)
+                self._plot_1D(self.ax_sY, self.curData[2][:,cutX], self.curData[1], clear_first_plot, cur_curse.colour)
                 clear_first_plot = False
         lstbx_cursor_info.update_vals(curse_infos, curse_cols)
 
@@ -1075,6 +1082,6 @@ class ScrollBarFrame(ttk.Frame):
 class LabelMultiline:
     def __init__(self, parent_ui_element):
         self.Frame = Frame(master=parent_ui_element)
-        self.Label = tk.Label(self.Frame, text="Sample Text")
+        self.Label = tk.Label(self.Frame, text="Sample Text", anchor="w", justify=LEFT)
         self.Label.pack(side="left", fill="x")
         self.Label.bind('<Configure>', lambda e: self.Label.config(wraplength=self.Frame.winfo_width()))
