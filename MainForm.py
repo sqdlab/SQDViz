@@ -1,6 +1,7 @@
 import tkinter as tk
 from tkinter import*
 from tkinter import ttk
+import tkinter.font as tkFont
 from tkinter.scrolledtext import ScrolledText
 
 from matplotlib.backends.backend_tkagg import (FigureCanvasTkAgg, NavigationToolbar2Tk)
@@ -64,8 +65,8 @@ class MainForm:
         #
         ################
         #CURSOR LISTBOX#
-        self.lstbx_cursors = ListBoxScrollBar(self.frame_cursors)
-        self.lstbx_cursors.frame.grid(row=0, column=0, columnspan=2, padx=10, pady=2, sticky="ews")
+        self.lstbx_cursors = MultiColumnListbox(self.frame_cursors, ["x", "y"])
+        self.lstbx_cursors.Frame.grid(row=0, column=0, columnspan=2, padx=10, pady=2, sticky="ews")
         ################
         #
         ####################
@@ -958,7 +959,7 @@ class PlotFrame:
             if len(self.curData) == 2:
                 return np.array([])
             else:
-                curse_infos += [ f"X: {cur_curse.cur_coord[0]}, Y: {cur_curse.cur_coord[1]}" ]
+                curse_infos += [[ cur_curse.cur_coord[0], cur_curse.cur_coord[1] ]]
                 curse_cols += [cur_curse.colour]
                 cutX = int((np.abs(self.curData[0] - cur_curse.cur_coord[0])).argmin())
                 cutY = int((np.abs(self.curData[1] - cur_curse.cur_coord[1])).argmin())
@@ -1085,3 +1086,70 @@ class LabelMultiline:
         self.Label = tk.Label(self.Frame, text="Sample Text", anchor="w", justify=LEFT)
         self.Label.pack(side="left", fill="x")
         self.Label.bind('<Configure>', lambda e: self.Label.config(wraplength=self.Frame.winfo_width()))
+
+class MultiColumnListbox(object):
+    """use a ttk.TreeView as a multicolumn ListBox"""
+
+    def __init__(self, parent_ui_element, column_headings):
+        self.tree = None
+
+        self.Frame = ttk.Frame(parent_ui_element)
+        self.Frame.pack(fill='both', expand=True)
+
+        #Setup the TreeView and the columns
+        self.column_headings = column_headings
+        self.tree = ttk.Treeview(columns=self.column_headings, show="headings")
+
+        #Create scrollbars
+        vsb = ttk.Scrollbar(orient="vertical", command=self.tree.yview)
+        hsb = ttk.Scrollbar(orient="horizontal", command=self.tree.xview)
+        self.tree.configure(yscrollcommand=vsb.set, xscrollcommand=hsb.set)
+        self.tree.grid(column=0, row=0, sticky='nsew', in_=self.Frame)
+        vsb.grid(column=1, row=0, sticky='ns', in_=self.Frame)
+        hsb.grid(column=0, row=1, sticky='ew', in_=self.Frame)
+        self.Frame.grid_columnconfigure(0, weight=1)
+        self.Frame.grid_rowconfigure(0, weight=1)
+
+        #Bind the column-sort command and adjust the column's width to the header string
+        for col in self.column_headings:
+            self.tree.heading(col, text=col, command=lambda c=col: self._sortby(self.tree, c, 0))
+            self.tree.column(col, width=tkFont.Font().measure(col))
+
+    def update_vals(self, update_rows, cols=None, select_index=-1):
+        self.tree.delete(*self.tree.get_children())
+        for ind, item in enumerate(update_rows):
+            self.tree.insert('', 'end', values=item, tags=ind)
+            #Colour the values if applicable:
+            if cols != None:
+                self.tree.tag_configure(tagname=ind, background="#ff0000")
+            # adjust column's width if necessary to fit each value
+            for ix, val in enumerate(item):
+                col_w = tkFont.Font().measure(val)
+                if self.tree.column(self.column_headings[ix],width=None)<col_w:
+                    self.tree.column(self.column_headings[ix], width=col_w)
+
+    def get_sel_val(self, get_index = False):
+        if get_index:
+            values = [m for m in self.tree.selection()]
+        else:
+            values = [self.tree.get(m) for m in self.tree.selection()]
+        if len(values) == 0:
+            return -1
+        else:
+            return values[0]
+
+    def _sortby(tree, col, descending):
+        """sort tree contents when a column header is clicked on"""
+        # grab values to sort
+        data = [(tree.set(child, col), child) \
+            for child in tree.get_children('')]
+        # if the data to be sorted is numeric change to float
+        #data =  change_numeric(data)
+        # now sort the data in place
+        data.sort(reverse=descending)
+        for ix, item in enumerate(data):
+            tree.move(item[1], '', ix)
+        # switch the heading so it will sort in the opposite direction
+        tree.heading(col, command=lambda col=col: sortby(tree, col, \
+            int(not descending)))
+
