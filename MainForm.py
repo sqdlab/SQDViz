@@ -90,7 +90,7 @@ class MainForm:
         #
         ################
         #CURSOR LISTBOX#
-        self.lstbx_analy_cursors = MultiColumnListbox(self.frame_analy_cursors, [" ", "  ", "Name", "Type", "Notes"])
+        self.lstbx_analy_cursors = MultiColumnListbox(self.frame_analy_cursors, ["Show/Hide", "  ", "Name", "Type", "Notes"], self._update_analy_cursor_item)
         self.lstbx_analy_cursors.Frame.grid(row=0, column=0, padx=10, pady=2, columnspan=3, sticky="news")
         ################
         #
@@ -99,7 +99,7 @@ class MainForm:
         self.cmbx_anal_cursors = ComboBoxEx(self.frame_analy_cursors, "")
         self.cmbx_anal_cursors.Frame.grid(row=1, column=0)
         tk.Button(master=self.frame_analy_cursors, text ="Add cursor", command = self._event_btn_anal_cursor_add).grid(row=1, column=1)
-        tk.Button(master=self.frame_analy_cursors, text ="Delete").grid(row=1, column=2)
+        tk.Button(master=self.frame_analy_cursors, text ="Delete", command = self._event_btn_anal_cursor_del).grid(row=1, column=2)
         ####################
         #
         self.frame_analy_cursors.rowconfigure(0, weight=1)
@@ -379,15 +379,12 @@ class MainForm:
             self.plot_main.pop_plots_with_cursor_cuts(self.lstbx_cursors)
             self.plot_main.Canvas.draw()
             #Analysis cursor update
-            cur_anal_cursor_table = []
-            for cur_curse in self._analysis_cursors:
-                if cur_curse.Visible:
-                    cur_sh_icon = "👁"
-                else:
-                    cur_sh_icon = "⊘"
-                cur_anal_cursor_table += [( cur_sh_icon, 'o', cur_curse.Name, cur_curse.Type, cur_curse.Summary )]
-            self.lstbx_analy_cursors.update_vals(cur_anal_cursor_table, update_widths = self._update_analy_cursor_table_widths)
-            self._update_analy_cursor_table_widths = False
+            if self._update_analy_cursor_table_widths:
+                cur_anal_cursor_table = []
+                for cur_curse in self._analysis_cursors:
+                    cur_anal_cursor_table += [(self._update_analy_cursor_item(cur_curse), cur_curse)]
+                self.lstbx_analy_cursors.update_vals(cur_anal_cursor_table, update_widths = self._update_analy_cursor_table_widths)
+                self._update_analy_cursor_table_widths = False
 
             #Setup new request if no new data is being fetched
             if not self.data_extractor.isFetching:
@@ -421,6 +418,13 @@ class MainForm:
             self.cmbx_axis_y.enable()
             self.cmbx_ckey.enable()
 
+
+    def _update_analy_cursor_item(self, analy_cursor):
+        if analy_cursor.Visible:
+            cur_sh_icon = "👁"
+        else:
+            cur_sh_icon = "⊘"
+        return [cur_sh_icon, 'o', analy_cursor.Name, analy_cursor.Type, analy_cursor.Summary]
     def _event_btn_anal_cursor_add(self):
         self._update_analy_cursor_table_widths = True
         cur_sel = self.cmbx_anal_cursors.get_sel_val()
@@ -439,6 +443,14 @@ class MainForm:
 
         if cur_sel == 'X-Region':
             self._analysis_cursors += [AC_Xregion(new_name)]
+    def _event_btn_anal_cursor_del(self):
+        cur_sel = self.lstbx_analy_cursors.del_sel_val()
+        cur_name = cur_sel[2]
+        #Presuming that the names across types are unique...
+        cur_obj = None
+        for ind, cur_curse in enumerate(self._analysis_cursors):
+            if cur_curse.Name == cur_name:
+                cur_obj = self._analysis_cursors.pop(ind)
 
     def _slice_Var_disp_text(self, slice_var_name, cur_slice_var_params):
         '''
@@ -1156,7 +1168,7 @@ class LabelMultiline:
 class MultiColumnListbox(object):
     """use a ttk.TreeView as a multicolumn ListBox"""
 
-    def __init__(self, parent_ui_element, column_headings):
+    def __init__(self, parent_ui_element, column_headings, item_updater=None):
         self.tree = None
 
         self.Frame = ttk.Frame(parent_ui_element)
@@ -1180,13 +1192,17 @@ class MultiColumnListbox(object):
             self.tree.heading(col, text=col, command=lambda c=col: self._sortby(self.tree, c, 0))
             self.tree.column(col, width=tkFont.Font().measure(col))
 
+        self._item_updater = item_updater
+
     def update_vals(self, update_rows, select_index=-1, update_widths = False):
+        self.tree.unbind_all("<ButtonPress-1>")
         self.tree.delete(*self.tree.get_children())
-        for item in update_rows:
-            self.tree.insert('', 'end', values=item)
+        for row in update_rows:
+            item = self.tree.insert('', 'end', values=row[0], tags= (f"i{row}", ))   #Add a unique ID (initial row number on a freshly created list) into the list of tags
+            self.tree.tag_bind(f"i{row}", '<ButtonRelease-1>', partial(self._on_click, row[1], item) )    #event
             if update_widths:
                 # adjust column's width if necessary to fit each value
-                for ix, val in enumerate(item):
+                for ix, val in enumerate(row[0]):
                     col_w = tkFont.Font().measure(val)
                     self.tree.column(self.column_headings[ix], width=int(np.ceil(col_w*1.2)))
                     # if self.tree.column(self.column_headings[ix],width=None)<col_w:
@@ -1198,11 +1214,20 @@ class MultiColumnListbox(object):
         if get_index:
             values = [m for m in self.tree.selection()]
         else:
-            values = [self.tree.get(m) for m in self.tree.selection()]
+            values = [self.tree.item(m)['values'] for m in self.tree.selection()]
         if len(values) == 0:
             return -1
         else:
             return values[0]
+
+    def del_sel_val(self):
+        items = [m for m in self.tree.selection()]
+        values = self.tree.item(items[0])['values']
+        self.tree.delete(items[0])
+        if len(values) == 0:
+            return -1
+        else:
+            return values
 
     def _sortby(tree, col, descending):
         """sort tree contents when a column header is clicked on"""
@@ -1218,3 +1243,15 @@ class MultiColumnListbox(object):
         # switch the heading so it will sort in the opposite direction
         tree.heading(col, command=lambda col=col: sortby(tree, col, \
             int(not descending)))
+
+    def _on_click(self, obj, item, event):
+        """Handle click on items."""
+        if self.tree.identify_row(event.y) == item:
+            cur_col_id = self.tree.identify_column(event.x)
+            if cur_col_id == '#1':    #First column is the Visible checkbox (they are enumerated as #1, #2 etc...)
+                obj.Visible = not obj.Visible   #Hard-coded object toggle...
+                if self._item_updater:
+                    self.tree.item(item, values=self._item_updater(obj))
+
+
+
