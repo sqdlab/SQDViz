@@ -309,7 +309,16 @@ class MainForm:
         self.possible_cursors = {
             'X-Region' : 'X',
             'Y-Region' : 'Y'
-        }        
+        }
+        #Setup a dictionary which maps hatching patterns into unicode symbols to fill the table...
+        #https://matplotlib.org/devdocs/gallery/shapes_and_collections/hatch_style_reference.html
+        #https://www.key-shortcut.com/en/writing-systems/35-symbols/symbols-typography
+        self.cursor_hatchings = {
+            '//' : '▨',
+            '\\\\' : '▧',
+            '++' : '▦',
+            'xx' : '▩'
+        }
         self.cmbx_anal_cursors.update_vals(self.possible_cursors.keys())
         self._update_analy_cursor_table_widths = False
 
@@ -340,13 +349,13 @@ class MainForm:
 
             if self.data_extractor.data_ready():
                 (indep_params, final_data, dict_rem_slices) = self.data_extractor.get_data()
-                cur_var_ind = self.dep_vars.index(self.cmbx_dep_var.get_sel_val())
-                if len(indep_params) == 1:
-                    self.plot_main.plot_data_1D(indep_params[0], final_data[cur_var_ind])
-                    self.update_plot_post_proc()
-                else:
-                    self.plot_main.plot_data_2D(indep_params[0], indep_params[1], final_data[cur_var_ind].T)    #Transposed due to pcolor's indexing requirements...
-                    self.update_plot_post_proc()
+                if not self.update_plot_post_proc(indep_params, final_data):
+                    #Not post-processed (hence not plotted) - so do so now...
+                    cur_var_ind = self.dep_vars.index(self.cmbx_dep_var.get_sel_val())
+                    if len(indep_params) == 1:
+                        self.plot_main.plot_data_1D(indep_params[0], final_data[cur_var_ind])
+                    else:
+                        self.plot_main.plot_data_2D(indep_params[0], indep_params[1], final_data[cur_var_ind].T)    #Transposed due to pcolor's indexing requirements...
                 #
                 #Populate the slice candidates
                 #
@@ -378,9 +387,9 @@ class MainForm:
                 else:
                     self.lstbx_slice_vars.update_vals(cur_lstbx_vals, select_index=cur_sel, generate_selection_event=False)
 
-            self.plot_main.pop_plots_with_cursor_cuts(self.lstbx_cursors)
+            cursor_changes = self.plot_main.pop_plots_with_cursor_cuts(self.lstbx_cursors)
             #Analysis cursor update
-            if self._update_analy_cursor_table_widths:
+            if self._update_analy_cursor_table_widths or cursor_changes:
                 cur_anal_cursor_table = []
                 for cur_curse in self.plot_main.AnalysisCursors:
                     cur_anal_cursor_table += [(self._update_analy_cursor_item(cur_curse), cur_curse)]
@@ -424,7 +433,7 @@ class MainForm:
             cur_sh_icon = "👁"
         else:
             cur_sh_icon = "⊘"
-        return [cur_sh_icon, 'o', analy_cursor.Name, analy_cursor.Type, analy_cursor.Summary]
+        return [cur_sh_icon, self.cursor_hatchings[analy_cursor.SymbolFill], analy_cursor.Name, analy_cursor.Type, analy_cursor.Summary]
     def _event_btn_anal_cursor_add(self):
         self._update_analy_cursor_table_widths = True
         cur_sel = self.cmbx_anal_cursors.get_sel_val()
@@ -441,9 +450,25 @@ class MainForm:
             m += 1
         new_name = f'{new_prefix}{m}'
 
+        #Get previous symbols
+        prev_syms = [x.SymbolFill for x in self.plot_main.AnalysisCursors]
+        #Choose new symbol
+        new_sym = None
+        for cur_sym in self.cursor_hatchings.keys():
+            if cur_sym not in prev_syms:
+                new_sym = cur_sym
+                break
+        #Choose random symbol if all are already taken
+        if new_sym == None:
+            import random
+            new_sym = prev_syms[random.randint(0, len(prev_syms)-1)]
+
+        ###ADD NEW ANALYSIS CURSORS HERE###
         if cur_sel == 'X-Region':
             new_obj = AC_Xregion(new_name)
             self.plot_main.AnalysisCursors += [new_obj]
+        #
+        new_obj.SymbolFill = new_sym
         new_obj.prepare_plot(self.plot_main, self.plot_main.ax)
     def _event_btn_anal_cursor_del(self):
         cur_sel = self.lstbx_analy_cursors.del_sel_val()
@@ -623,6 +648,12 @@ class MainForm:
             lbl_procs.grid(row=row_off, column=0)
             self.frm_proc_disp_children.append(lbl_procs)
             #
+            # if cur_arg[1] == 'cursor':
+            #     cmbx_proc_output = ComboBoxEx(self.frm_proc_disp, "")
+            #     cmbx_proc_output.update_vals([x.Name for x in self.plot_main.AnalysisCursors if x.Type == cur_arg[2]])
+            #     cmbx_proc_output.Frame.grid(row=row_off, column=1)
+            #     self.frm_proc_disp_children.append(cmbx_proc_output.combobox)
+            # else:
             tbx_proc_output = ttk.Entry(self.frm_proc_disp, validate="key", width=tbx_width)  #validate can be validate="focusout" as well
             tbx_proc_output.insert(END, cur_proc['ArgsInput'][ind])
             if cur_arg[1] == 'int':
@@ -720,18 +751,21 @@ class MainForm:
         cur_output_var = self.tbx_proc_output.get()
         self.cmds_to_execute += f'global cur_data; cur_data={cur_output_var}'
 
-    def update_plot_post_proc(self):
+    def update_plot_post_proc(self, indep_params, dep_params):
         if len(self.cur_post_procs) == 0:
             self.lbl_procs_errors['text'] = f"Add functions to activate postprocessing."
-            return
+            return False
 
         #Data declarations
         data = {}
-        for cur_dep_var in self.dep_vars:
-            if len(self.plot_main.curData) == 2:
-                data[cur_dep_var] = {'x': self.plot_main.curData[0], 'data': self.plot_main.curData[1]}
+        for ind, cur_dep_var in enumerate(self.dep_vars):
+            if len(indep_params) == 1:
+                data[cur_dep_var] = {'x': indep_params[0], 'data': dep_params[ind]}
             else:
-                data[cur_dep_var] = {'x': self.plot_main.curData[0], 'y': self.plot_main.curData[1], 'data': self.plot_main.curData[2]}
+                data[cur_dep_var] = {'x': indep_params[0], 'y': indep_params[1], 'data': dep_params[ind].T}    #Transposed due to pcolor's indexing requirements...
+
+        #Available analysis cursors
+        cur_analy_curs_names = [x.Name for x in self.plot_main.AnalysisCursors]
 
         #Process each command sequentially
         for cur_proc_ind, cur_proc in enumerate(self.cur_post_procs):
@@ -746,7 +780,19 @@ class MainForm:
                         cur_args[ind] = data[cur_args[ind]]
                     else:
                         self.lbl_procs_errors['text'] = f"Dataset \'{cur_args[ind]}\' does not exist in step #{cur_proc_ind+1}"
-                        return
+                        return False
+                elif cur_arg[1] == 'cursor':
+                    the_cursor = None
+                    #Find cursor
+                    for cur_curse in self.plot_main.AnalysisCursors:
+                        if cur_curse.Name == cur_args[ind] and cur_curse.Type == cur_arg[2]:
+                            the_cursor = cur_curse
+                            break
+                    if the_cursor != None:
+                        cur_args[ind] = the_cursor
+                    else:
+                        self.lbl_procs_errors['text'] = f"Cursor \'{cur_args[ind]}\' is not a valid analysis cursor in step #{cur_proc_ind+1}"
+                        return False
             #Execute command
             output_tuples = cur_proc['ProcessObj'](*cur_args)
             #Map the outputs into the dictionary
@@ -758,7 +804,7 @@ class MainForm:
             cur_data = data[self.cur_post_proc_output]
         else:
             self.lbl_procs_errors['text'] = f"Dataset \'{self.cur_post_proc_output}\' does not exist"   #It's the final entry - if it doesn't exist yet, it doesn't exist...
-            return
+            return False
 
         #No errors - so reset the message...
         self.lbl_procs_errors['text'] = ""
@@ -768,6 +814,7 @@ class MainForm:
             self.plot_main.plot_data_1D(cur_data['x'], cur_data['data'])
         else:
             self.plot_main.plot_data_2D(cur_data['x'], cur_data['y'], cur_data['data'])
+        return True
 
     def _event_quit():
         root.quit()     # stops mainloop
@@ -799,6 +846,9 @@ class ComboBoxEx:
         #Clear combobox
         self._vals = list(list_vals)
         self.combobox['values'] = self._vals
+
+        if len(list_vals) == 0:
+            return
             
         if cur_sel == None or not (cur_sel in self._vals):
             #Select first element by default...
@@ -1137,10 +1187,15 @@ class PlotFrame:
         if lstbx_cursor_info != None:
             lstbx_cursor_info.update_vals(curse_infos, curse_cols)
         #Analysis cursors
+        changes = False
         for cur_curse in self.AnalysisCursors:
+            if cur_curse.has_changed:
+                changes = True
             cur_curse.has_changed = False
-            cur_curse.render_blit()
+            if cur_curse.Visible:
+                cur_curse.render_blit()
         self.ax.figure.canvas.blit(self.ax.bbox)
+        return changes
 
     def event_mouse_pressed(self, event):
         #Pick first cursor that can be picked by the mouse if applicable

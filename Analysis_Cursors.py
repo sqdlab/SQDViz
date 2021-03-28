@@ -25,7 +25,7 @@ class Analysis_Cursor:
 
     @property
     def Dragging(self):
-        return self._is_drag == 'None'
+        return self._is_drag != 'None'
 
     def prepare_plot(self, pltfrm, ax):
         #NOTE: MUST CALL THIS IN SUPER FIRST!
@@ -57,7 +57,7 @@ class Analysis_Cursor:
         raise NotImplementedError()
 
     def event_mouse_pressed(self, event):
-        if event.inaxes and event.button == MouseButton.LEFT:
+        if event.inaxes and event.button == MouseButton.LEFT and self.Visible:
             self._event_mouse_pressed((event.xdata, event.ydata))
 
     def _move_cursor(self, event):
@@ -98,6 +98,7 @@ class AC_Xregion(Analysis_Cursor):
         super().__init__(name)
         self.x1 = 0
         self.x2 = 0.1
+        self._fill = '/'
 
     @property
     def Type(self):
@@ -108,10 +109,17 @@ class AC_Xregion(Analysis_Cursor):
     @property
     def Summary(self):
         return f'[{self.x1,self.x2}]'
+    
+    @property
+    def SymbolFill(self):
+        return self._fill
+    @SymbolFill.setter
+    def SymbolFill(self, new_hatch):
+        self._fill = new_hatch
 
     def prepare_plot(self, pltfrm, ax):
         super().prepare_plot(pltfrm, ax)
-        self.rect = Rectangle((self.x1,0.0), 0.1, 0.1, angle=0.0, edgecolor='black', fill=False)
+        self.rect = Rectangle((self.x1,0.0), 0.1, 0.1, angle=0.0, facecolor='none', edgecolor='black', hatch=self._fill)
         self.ax.add_patch(self.rect)
 
     def delete_from_plot(self):

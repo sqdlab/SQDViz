@@ -30,7 +30,7 @@ class PostProcessors:
                 else:
                     ret_vals.append(f'd{m}')
                 m += 1
-            elif cur_arg[1] == 'float':
+            elif cur_arg[1] == 'float' or cur_arg[1] == 'cursor':
                 ret_vals.append(cur_arg[2])
             else:
                 assert False, "There appears to be an unhandled data-type: " + cur_arg
@@ -97,4 +97,31 @@ class PP_MedianFilterX(PostProcessors):
             ret_val['data'] = scipy.ndimage.median_filter(args[0]['data'], size=(1, args[1]))
         else:
             ret_val['data'] = scipy.ndimage.median_filter(args[0]['data'], size=(args[1]))
+        return (ret_val, )
+
+class PP_SubRegX(PostProcessors):
+    def get_description(self):
+        return "Performs a line-by-line subtraction of every line by the average value over a selected x-interval on said line."
+
+    def get_input_args(self):
+        return [('Input dataset', 'data'), ('X-interval', 'cursor', 'X-Region')]
+
+    def get_output_args(self):
+        return [('Filtered data', 'data', 'filtData')]
+
+    def __call__(self, *args):
+        ret_val = {}
+        ret_val['x'] = args[0]['x']
+        
+        anal_cursorX = args[1]
+        ind1 = (np.abs(ret_val['x'] - anal_cursorX.x1)).argmin()
+        ind2 = (np.abs(ret_val['x'] - anal_cursorX.x2)).argmin()
+
+        if 'y' in args[0]:
+            ret_val['y'] = args[0]['y']
+            means = args[0]['data'][:, ind1:(ind2+1)].mean(axis=1)
+            ret_val['data'] = (args[0]['data'].T - means).T
+        else:
+            means = args[0]['data'][ind1:(ind2+1)].mean()
+            ret_val['data'] = args[0]['data'] - means
         return (ret_val, )
