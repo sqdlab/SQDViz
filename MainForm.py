@@ -37,17 +37,13 @@ class MainForm:
         #    LHS FRAME
         ###################
         #
+        self.pw_lhs = PanedWindow(orient =tk.VERTICAL, master=self.frame_LHS, sashwidth=3, bg = "#000077", bd = 0)
         #
         ###################
         #MAIN PLOT DISPLAY#
         ###################
-        # self.pw_plots_main = PanedWindow(orient =tk.VERTICAL, master=self.frame_LHS, sashwidth=3, bg = "#000077", bd = 0)
-        self.plot_main = PlotFrame(self.frame_LHS)
-        # self.pw_plots_main.add(self.plot_main.Frame,stretch='always')
-        # self.plot_slice = PlotFrame(self.pw_plots_main)
-        # self.pw_plots_main.add(self.plot_slice.Frame)
-        #
-        self.plot_main.Frame.grid(row=0,column=0,sticky='nsew')
+        self.plot_main = PlotFrame(self.pw_lhs)
+        self.pw_lhs.add(self.plot_main.Frame,stretch='always')
         ###################
         #
         #
@@ -56,7 +52,8 @@ class MainForm:
         #########################
         #
         #Overall frame broken up into columns containing individual frames...
-        frame_cursors_all = Frame(master=self.frame_LHS)#, text = "Plot Parameters")
+        frame_cursors_all = Frame(master=self.pw_lhs)
+        self.pw_lhs.add(frame_cursors_all,stretch='always')
         #
         ################
         #CURSOR DISPLAY#
@@ -109,14 +106,11 @@ class MainForm:
         #########################
         #
         #
-        frame_cursors_all.grid(row=1,column=0,sticky='news')
         frame_cursors_all.columnconfigure(0, weight=1)
         frame_cursors_all.columnconfigure(1, weight=1)
         frame_cursors_all.rowconfigure(0, weight=1)
         #
-        self.frame_LHS.rowconfigure(0, weight=1)
-        self.frame_LHS.rowconfigure(1, weight=0)
-        self.frame_LHS.columnconfigure(0, weight=1)
+        self.pw_lhs.pack(fill=BOTH, expand=1)
         #########################
 
 
@@ -341,6 +335,16 @@ class MainForm:
         #Kick-start the UI elements
         self._event_lstbxPPfunction_changed(None)
         self._event_lstbx_proc_current_changed(None)
+
+        #Initialise UI to then adjust the sashes to make the UI just right
+        self.root.update()
+        #Take about 350 pixels for the RHS toolbars...
+        cur_width = self.pw_main_LR_UI.winfo_width()
+        self.pw_main_LR_UI.sash_place(0, int(cur_width-350), 1)
+        #Give about 171 pixels for the bottom cursors
+        cur_height = self.pw_lhs.winfo_height()
+        self.pw_lhs.sash_place(0, 1, int(cur_height-171))
+        
 
     def main_loop(self):
         import time
