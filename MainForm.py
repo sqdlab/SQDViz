@@ -311,7 +311,6 @@ class MainForm:
             'Y-Region' : 'Y'
         }        
         self.cmbx_anal_cursors.update_vals(self.possible_cursors.keys())
-        self._analysis_cursors = []
         self._update_analy_cursor_table_widths = False
 
         #Setup the slicing variables
@@ -383,7 +382,7 @@ class MainForm:
             #Analysis cursor update
             if self._update_analy_cursor_table_widths:
                 cur_anal_cursor_table = []
-                for cur_curse in self._analysis_cursors:
+                for cur_curse in self.plot_main.AnalysisCursors:
                     cur_anal_cursor_table += [(self._update_analy_cursor_item(cur_curse), cur_curse)]
                 self.lstbx_analy_cursors.update_vals(cur_anal_cursor_table, update_widths = self._update_analy_cursor_table_widths)
                 self._update_analy_cursor_table_widths = False
@@ -432,7 +431,7 @@ class MainForm:
 
         #Find previous names
         prev_names = []
-        for cur_curse in self._analysis_cursors:
+        for cur_curse in self.plot_main.AnalysisCursors:
             if cur_curse.Type == cur_sel:
                 prev_names += [cur_curse.Name]
         #Choose new name
@@ -443,15 +442,18 @@ class MainForm:
         new_name = f'{new_prefix}{m}'
 
         if cur_sel == 'X-Region':
-            self._analysis_cursors += [AC_Xregion(new_name)]
+            new_obj = AC_Xregion(new_name)
+            self.plot_main.AnalysisCursors += [new_obj]
+        new_obj.prepare_plot(self.plot_main, self.plot_main.ax)
     def _event_btn_anal_cursor_del(self):
         cur_sel = self.lstbx_analy_cursors.del_sel_val()
         cur_name = cur_sel[2]
         #Presuming that the names across types are unique...
         cur_obj = None
-        for ind, cur_curse in enumerate(self._analysis_cursors):
+        for ind, cur_curse in enumerate(self.plot_main.AnalysisCursors):
             if cur_curse.Name == cur_name:
-                cur_obj = self._analysis_cursors.pop(ind)
+                cur_obj = self.plot_main.AnalysisCursors.pop(ind)
+                cur_obj.delete_from_plot()
 
     def _slice_Var_disp_text(self, slice_var_name, cur_slice_var_params):
         '''
@@ -967,6 +969,7 @@ class PlotFrame:
 
         self.curData = []
         self.Cursors = []
+        self.AnalysisCursors = []
         self._cur_col_key = 'viridis'
         self._cur_2D = False
         self._replot_cuts = False
@@ -1086,6 +1089,10 @@ class PlotFrame:
                 if cur_curse.has_changed:
                     no_changes = False
                     break
+            for cur_curse in self.AnalysisCursors:
+                if cur_curse.has_changed:
+                    no_changes = False
+                    break
             if no_changes:
                 #Basically plot in the next frame that's free without any cursor changes...
                 if self._replot_cuts:
@@ -1112,8 +1119,10 @@ class PlotFrame:
         curse_infos = []
         curse_cols = []
         clear_first_plot = True
+        #Reset plot background
         if len(self.curData) == 3:
             self.ax.figure.canvas.restore_region(self.bg)
+        #Main cursors
         for cur_curse in self.Cursors:
             if len(self.curData) < 3:
                 return np.array([])
@@ -1127,6 +1136,10 @@ class PlotFrame:
                 cur_curse.has_changed = False
         if lstbx_cursor_info != None:
             lstbx_cursor_info.update_vals(curse_infos, curse_cols)
+        #Analysis cursors
+        for cur_curse in self.AnalysisCursors:
+            cur_curse.has_changed = False
+            cur_curse.render_blit()
         self.ax.figure.canvas.blit(self.ax.bbox)
 
     def event_mouse_pressed(self, event):
@@ -1134,6 +1147,11 @@ class PlotFrame:
         for cur_curse in self.Cursors:
             cur_curse.event_mouse_pressed(event)
             if cur_curse._is_drag != 'None':
+                return
+        #Check analysis cursors too:
+        for cur_curse in self.AnalysisCursors:
+            cur_curse.event_mouse_pressed(event)
+            if cur_curse.Dragging:
                 return
 
 class PlotCursorDrag(object):
@@ -1193,7 +1211,6 @@ class PlotCursorDrag(object):
         else:
             #Give up drag if mouse goes out of the axis...
             self._is_drag = 'None'
-        # plt.draw()
 
     def event_mouse_pressed(self, event):
         if event.inaxes and event.button == MouseButton.LEFT:
