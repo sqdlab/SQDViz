@@ -90,7 +90,7 @@ class MainForm:
         #
         ################
         #CURSOR LISTBOX#
-        self.lstbx_analy_cursors = MultiColumnListbox(self.frame_analy_cursors, ["Show/Hide", "  ", "Name", "Type", "Notes"], self._update_analy_cursor_item)
+        self.lstbx_analy_cursors = MultiColumnListbox(self.frame_analy_cursors, [" ", "  ", "Name", "Type", "Notes"], self._update_analy_cursor_item)
         self.lstbx_analy_cursors.Frame.grid(row=0, column=0, padx=10, pady=2, columnspan=3, sticky="news")
         ################
         #
@@ -335,7 +335,10 @@ class MainForm:
         self._event_lstbx_proc_current_changed(None)
 
     def main_loop(self):
+        import time
         while True:
+            start_time = time.time() 
+
             if self.data_extractor.data_ready():
                 (indep_params, final_data, dict_rem_slices) = self.data_extractor.get_data()
                 cur_var_ind = self.dep_vars.index(self.cmbx_dep_var.get_sel_val())
@@ -377,7 +380,6 @@ class MainForm:
                     self.lstbx_slice_vars.update_vals(cur_lstbx_vals, select_index=cur_sel, generate_selection_event=False)
 
             self.plot_main.pop_plots_with_cursor_cuts(self.lstbx_cursors)
-            self.plot_main.Canvas.draw()
             #Analysis cursor update
             if self._update_analy_cursor_table_widths:
                 cur_anal_cursor_table = []
@@ -402,6 +404,8 @@ class MainForm:
             #tkinter.mainloop()
             # self.root.update_idletasks()
             self.root.update()
+            if time.time() - start_time > 0:
+                print("FPS: ", 1.0 / (time.time() - start_time), end='\r') # FPS = 1 / time to process loop
         # If you put root.destroy() here, it will cause an error if the window is
         # closed with the window manager.
 
@@ -410,9 +414,6 @@ class MainForm:
             #1D Plot
             self.cmbx_axis_y.disable()
             self.cmbx_ckey.disable()
-            #Move the sash in the paned-window to hide the 1D slices
-            cur_height = self.pw_plots_main.winfo_height()
-            self.pw_plots_main.sash_place(0, 1, int(cur_height-1))
         else:
             #2D Plot
             self.cmbx_axis_y.enable()
@@ -922,6 +923,20 @@ class ColourMap:
     def CMap(self):
         return self._cmap
 
+class NavigationToolbar2TkEx(NavigationToolbar2Tk):
+    def __init__(self, canvas, frame, pltfrm):
+        self._pltfrm = pltfrm
+        super().__init__(canvas, frame)
+    
+    def home(self, *args):
+        super().home(*args)
+        self._pltfrm.reset_plot()
+
+    def release_zoom(self, event):
+        super().release_zoom(event)
+        #Need the plot_2D here as the restore_region doesn't account for the new zoomed extent and won't refresh the pcolor until the next plot update...
+        self._pltfrm._plot_2D()
+
 class PlotFrame:
     def __init__(self, root_ui):
         self.fig = Figure(figsize=(1,1))
@@ -933,15 +948,15 @@ class PlotFrame:
                       left=0.1, right=0.9, bottom=0.1, top=0.9,
                       wspace=0.05, hspace=0.05)
         self.ax = self.fig.add_subplot(gs[1, 0])
-        self.ax_sX = self.fig.add_subplot(gs[0, 0], sharex=self.ax)
-        self.ax_sY = self.fig.add_subplot(gs[1, 1], sharey=self.ax)
+        self.ax_sX = self.fig.add_subplot(gs[0, 0])#, sharex=self.ax)
+        self.ax_sY = self.fig.add_subplot(gs[1, 1])#, sharey=self.ax)
         self.ax_sX.tick_params(labelbottom=False, bottom=False)
         self.ax_sY.tick_params(labelleft=False, left=False)
 
         self.Frame = Frame(master=root_ui)
 
         self.Canvas = FigureCanvasTkAgg(self.fig, master = self.Frame)
-        self.ToolBar = NavigationToolbar2Tk(self.Canvas, self.Frame)
+        self.ToolBar = NavigationToolbar2TkEx(self.Canvas, self.Frame, self)
         self.ToolBar.update()
         self.ToolBar.grid_configure(row=0,column=0,sticky='nsew')
         self.Canvas.get_tk_widget().grid(row=1,column=0,sticky='nsew')
@@ -954,6 +969,7 @@ class PlotFrame:
         self.Cursors = []
         self._cur_col_key = 'viridis'
         self._cur_2D = False
+        self._replot_cuts = False
 
         self.Canvas.mpl_connect('button_press_event', self.event_mouse_pressed)
 
@@ -1003,48 +1019,115 @@ class PlotFrame:
             cur_ax.plot(dataX, dataY, color = colour)
         else:
             cur_ax.plot(dataX, dataY)
+        # self.bg = self.ax.figure.canvas.copy_from_bbox(self.ax.bbox)
 
     def plot_data_2D(self, dataX, dataY, dataZ):
+        #Figure out if the plot is to rescale its extent
+        if len(self.curData) < 3:
+            replot = True
+        else:
+            extent = [x for x in self.ax.axis()]
+            xlimts = self.ax.get_xlim()
+            xpct = (extent[1] - extent[0])/(np.max(self.curData[0]) - np.min(self.curData[0]))
+            ylimts = self.ax.get_ylim()
+            ypct = (extent[3] - extent[2])/(np.max(self.curData[1]) - np.min(self.curData[1]))
+            replot =  xpct > 0.99 and ypct > 0.99
+
         self.curData = (dataX, dataY, dataZ)
         self._cur_2D = True
-        self._plot_2D()
+        self._plot_2D(replot)
 
     def set_colour_key(self, new_col_key):
         self._cur_col_key = new_col_key
         self._plot_2D()
 
-    def _plot_2D(self):
+    def reset_plot(self):
         if self._cur_2D:
-            self.ax.clear()
-            self.ax.pcolor(self.curData[0], self.curData[1], self.curData[2], shading='nearest', cmap=self._cur_col_key.CMap)
+            extent = (min(self.curData[0]), max(self.curData[0]), min(self.curData[1]), max(self.curData[1]))
+            self.ax.axis(extent)
+            #Need the plot_2D here as the restore_region doesn't account for the new extent and won't refresh the pcolor until the next plot update...
+            self._plot_2D()
             self.update()
 
-    def pop_plots_with_cursor_cuts(self, lstbx_cursor_info):
+    def _plot_2D(self, replot = False):
+        if self._cur_2D:
+            if not replot:
+                extent = [x for x in self.ax.axis()]
+                a = min(self.curData[0])
+                if extent[0] < a: extent[0] = a
+                a = max(self.curData[0])
+                if extent[1] > a: extent[1] = a
+                a = min(self.curData[1])
+                if extent[2] < a: extent[2] = a
+                a = max(self.curData[1])
+                if extent[3] > a: extent[3] = a
+            
+            self.ax.clear()
+            self.ax.pcolor(self.curData[0], self.curData[1], self.curData[2], shading='nearest', cmap=self._cur_col_key.CMap)
+            if not replot:
+                self.ax.axis(extent)
+            self.fig.canvas.draw()
+            self.bg = self.ax.figure.canvas.copy_from_bbox(self.ax.bbox)
+            self.update()
+            self.pop_plots_with_cursor_cuts()
+
+    def get_data_limits(self):
+        if len(self.curData) > 1:
+            return (min(self.curData[0]), max(self.curData[0]), min(self.curData[1]), max(self.curData[1]))
+        else:
+            return (0,1,0,1)
+
+    def pop_plots_with_cursor_cuts(self, lstbx_cursor_info=None):
         #Check if a cursor has moved...
-        no_changes = True
-        for cur_curse in self.Cursors:
-            if cur_curse.has_changed:
-                no_changes = False
-                break
-        if no_changes:
-            return
+        if lstbx_cursor_info != None:
+            #If lstbx_cursor_info is None, then it's an internal call to redraw the cursors (e.g. new plot, zoom or home-button has been hit)
+            no_changes = True
+            for cur_curse in self.Cursors:
+                if cur_curse.has_changed:
+                    no_changes = False
+                    break
+            if no_changes:
+                #Basically plot in the next frame that's free without any cursor changes...
+                if self._replot_cuts:
+                    clear_first_plot = True
+                    for cur_curse in self.Cursors:
+                        if len(self.curData) < 3:
+                            return np.array([])
+                        else:
+                            cutX = int((np.abs(self.curData[0] - cur_curse.cur_coord[0])).argmin())
+                            cutY = int((np.abs(self.curData[1] - cur_curse.cur_coord[1])).argmin())
+                            xlimts = self.ax.get_xlim()
+                            ylimts = self.ax.get_ylim()
+                            self._plot_1D(self.ax_sX, self.curData[0], self.curData[2][cutY,:], clear_first_plot, cur_curse.colour)
+                            self._plot_1D(self.ax_sY, self.curData[2][:,cutX], self.curData[1], clear_first_plot, cur_curse.colour)
+                            self.ax_sX.set_xlim(*xlimts)
+                            self.ax_sY.set_ylim(*ylimts)
+                            clear_first_plot = False
+                    self._replot_cuts = False
+                return
+        else:
+            self._replot_cuts = True
         
         #Plot each cursor's cut...
         curse_infos = []
         curse_cols = []
         clear_first_plot = True
+        if len(self.curData) == 3:
+            self.ax.figure.canvas.restore_region(self.bg)
         for cur_curse in self.Cursors:
-            if len(self.curData) == 2:
+            if len(self.curData) < 3:
                 return np.array([])
             else:
+                #Update main plot
+                self.ax.draw_artist(cur_curse.lx)
+                self.ax.draw_artist(cur_curse.ly)
                 curse_infos += [ f"X: {cur_curse.cur_coord[0]}, Y: {cur_curse.cur_coord[1]}" ]
                 curse_cols += [cur_curse.colour]
-                cutX = int((np.abs(self.curData[0] - cur_curse.cur_coord[0])).argmin())
-                cutY = int((np.abs(self.curData[1] - cur_curse.cur_coord[1])).argmin())
-                self._plot_1D(self.ax_sX, self.curData[0], self.curData[2][cutY,:], clear_first_plot, cur_curse.colour)
-                self._plot_1D(self.ax_sY, self.curData[2][:,cutX], self.curData[1], clear_first_plot, cur_curse.colour)
                 clear_first_plot = False
-        lstbx_cursor_info.update_vals(curse_infos, curse_cols)
+                cur_curse.has_changed = False
+        if lstbx_cursor_info != None:
+            lstbx_cursor_info.update_vals(curse_infos, curse_cols)
+        self.ax.figure.canvas.blit(self.ax.bbox)
 
     def event_mouse_pressed(self, event):
         #Pick first cursor that can be picked by the mouse if applicable
@@ -1061,10 +1144,12 @@ class PlotCursorDrag(object):
         
         self.colour = colour
         
-        xlimts = self.ax.get_xlim()
-        ylimts = self.ax.get_ylim()
-        self.lx = self.ax.axvline(ymin=ylimts[0],ymax=ylimts[1],color=colour)
-        self.ly = self.ax.axhline(xmin=xlimts[0],xmax=xlimts[1],color=colour)
+        lims = self.pltFrame.get_data_limits()
+        xlimts = lims[0:2]
+        ylimts = lims[2:4]
+        #Note that the xmin/ymin/xmax/ymax are normalized coordinates (0 to 1 across the axes...)
+        self.lx = self.ax.axvline(ymin=0.0,ymax=1.0,color=self.colour)
+        self.ly = self.ax.axhline(xmin=0.0,xmax=1.0,color=self.colour)
         self.cur_coord = (0.5*(xlimts[0]+xlimts[1]), 0.5*(ylimts[0]+ylimts[1]))
         self.lx.set_xdata(self.cur_coord[0])
         self.ly.set_ydata(self.cur_coord[1])
@@ -1080,10 +1165,9 @@ class PlotCursorDrag(object):
         self.has_changed = False
 
     def update(self):
-        xlimts = self.ax.get_xlim()
-        ylimts = self.ax.get_ylim()
-        self.lx = self.ax.axvline(ymin=ylimts[0],ymax=ylimts[1],color=self.colour)
-        self.ly = self.ax.axhline(xmin=xlimts[0],xmax=xlimts[1],color=self.colour)
+        lims = self.pltFrame.get_data_limits()
+        xlimts = lims[0:2]
+        ylimts = lims[2:4]
 
         #Reset coordinate if cursor falls outside the possibly new axis
         if self.cur_coord[0] < xlimts[0] or self.cur_coord[0] > xlimts[1] or self.cur_coord[1] < ylimts[0] or self.cur_coord[1] > ylimts[1]:
@@ -1166,9 +1250,8 @@ class LabelMultiline:
         self.Label.bind('<Configure>', lambda e: self.Label.config(wraplength=self.Frame.winfo_width()))
 
 class MultiColumnListbox(object):
-    """use a ttk.TreeView as a multicolumn ListBox"""
-
     def __init__(self, parent_ui_element, column_headings, item_updater=None):
+        #Inspired by: https://stackoverflow.com/questions/5286093/display-listbox-with-columns-using-tkinter   
         self.tree = None
 
         self.Frame = ttk.Frame(parent_ui_element)
@@ -1205,10 +1288,6 @@ class MultiColumnListbox(object):
                 for ix, val in enumerate(row[0]):
                     col_w = tkFont.Font().measure(val)
                     self.tree.column(self.column_headings[ix], width=int(np.ceil(col_w*1.2)))
-                    # if self.tree.column(self.column_headings[ix],width=None)<col_w:
-                    #     self.tree.column(self.column_headings[ix], width=col_w)
-                    # if self.tree.column(self.column_headings[ix],width=None)>1.2*col_w:
-                    #     self.tree.column(self.column_headings[ix], width=int(np.round(col_w*1.2)))
 
     def get_sel_val(self, get_index = False):
         if get_index:
