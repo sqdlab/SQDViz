@@ -3,6 +3,7 @@ from tkinter import*
 from tkinter import ttk
 import tkinter.font as tkFont
 from tkinter.scrolledtext import ScrolledText
+from tkinter import filedialog as fd
 
 from matplotlib.backends.backend_tkagg import (FigureCanvasTkAgg, NavigationToolbar2Tk)
 # Implement the default Matplotlib key bindings.
@@ -26,12 +27,30 @@ class MainForm:
         self.root = tk.Tk()
         self.root.wm_title("SQDviz - Data visualisation tool")
 
-        self.pw_main_LR_UI = PanedWindow(orient =tk.HORIZONTAL, master=self.root, sashwidth=3, bg = "#000077", bd = 0)
+        frame_overall = Frame(master=self.root)
+        frame_toolbar = Frame(master=frame_overall)
+        
+        self.pw_main_LR_UI = PanedWindow(orient =tk.HORIZONTAL, master=frame_overall, sashwidth=3, bg = "#000077", bd = 0)
         self.frame_LHS = Frame(master=self.pw_main_LR_UI)
         self.frame_RHS = Frame(master=self.pw_main_LR_UI)
         self.pw_main_LR_UI.add(self.frame_LHS,stretch='always')
         self.pw_main_LR_UI.add(self.frame_RHS,stretch='always')
-        self.pw_main_LR_UI.pack(fill=BOTH, expand=1)
+        #
+        frame_toolbar.rowconfigure(0, weight=1)
+        frame_toolbar.grid(row=0, column=0, sticky="news")
+        self.pw_main_LR_UI.grid(row=1, column=0, sticky="news")
+        #
+        frame_overall.rowconfigure(0, weight=0)
+        frame_overall.rowconfigure(1, weight=1)
+        frame_overall.columnconfigure(0, weight=1)
+        frame_overall.pack(fill=BOTH, expand=1)        
+
+        #####################
+        #      TOOLBAR
+        #####################
+        self.icon_openhdf5 = PhotoImage(file = "Icons/OpenSQDToolzHDF5.png")    #Need to store reference for otherwise garbage collection destroys it...
+        tk.Button(master=frame_toolbar, image=self.icon_openhdf5, command=self._open_file_hdf5).grid(row=0, column=0)
+        #####################
 
         ###################
         #    LHS FRAME
@@ -69,8 +88,10 @@ class MainForm:
         #
         ####################
         #ADD/REMOVE BUTTONS#
-        tk.Button(master=self.frame_cursors, text ="Add cursor", command = lambda: self.plot_main.add_cursor()).grid(row=1, column=0)
-        tk.Button(master=self.frame_cursors, text ="Delete cursor", command = lambda: self.plot_main.Cursors.pop(self.lstbx_cursors.get_sel_val(True))).grid(row=1, column=1)
+        self.btn_cursor_add = tk.Button(master=self.frame_cursors, text ="Add cursor", command = lambda: self.plot_main.add_cursor())
+        self.btn_cursor_add.grid(row=1, column=0)
+        self.btn_cursor_del = tk.Button(master=self.frame_cursors, text ="Delete cursor", command = lambda: self.plot_main.Cursors.pop(self.lstbx_cursors.get_sel_val(True)))
+        self.btn_cursor_del.grid(row=1, column=1)
         ####################
         #
         self.frame_cursors.rowconfigure(0, weight=1)
@@ -95,8 +116,10 @@ class MainForm:
         #ADD/REMOVE BUTTONS#
         self.cmbx_anal_cursors = ComboBoxEx(self.frame_analy_cursors, "")
         self.cmbx_anal_cursors.Frame.grid(row=1, column=0)
-        tk.Button(master=self.frame_analy_cursors, text ="Add cursor", command = self._event_btn_anal_cursor_add).grid(row=1, column=1)
-        tk.Button(master=self.frame_analy_cursors, text ="Delete", command = self._event_btn_anal_cursor_del).grid(row=1, column=2)
+        self.btn_analy_cursor_add = tk.Button(master=self.frame_analy_cursors, text ="Add cursor", command = self._event_btn_anal_cursor_add)
+        self.btn_analy_cursor_add.grid(row=1, column=1)
+        self.btn_analy_cursor_del = tk.Button(master=self.frame_analy_cursors, text ="Delete", command = self._event_btn_anal_cursor_del)
+        self.btn_analy_cursor_del.grid(row=1, column=2)
         ####################
         #
         self.frame_analy_cursors.rowconfigure(0, weight=1)
@@ -126,10 +149,11 @@ class MainForm:
         #
         #Labelled frame container with the radio buttons stored in the variable self.plot_dim_type
         self.plot_dim_type = tk.IntVar()
-        self.plot_dim_type.set(1)
         lblfrm_axis_sel = LabelFrame(master=lblfrm_plot_params, text="Plot Axes", padx=10, pady=2)
-        tk.Radiobutton(lblfrm_axis_sel, text="1D Plot", padx = 20, variable=self.plot_dim_type, value=1, command=self._event_plotsel_changed).grid(row=0, column=0)
-        tk.Radiobutton(lblfrm_axis_sel, text="2D Plot", padx = 20, variable=self.plot_dim_type, value=2, command=self._event_plotsel_changed).grid(row=1, column=0)
+        self.rdbtn_plot_sel_1D = tk.Radiobutton(lblfrm_axis_sel, text="1D Plot", padx = 20, variable=self.plot_dim_type, value=1, command=self._event_plotsel_changed)
+        self.rdbtn_plot_sel_1D.grid(row=0, column=0)
+        self.rdbtn_plot_sel_2D = tk.Radiobutton(lblfrm_axis_sel, text="2D Plot", padx = 20, variable=self.plot_dim_type, value=2, command=self._event_plotsel_changed)
+        self.rdbtn_plot_sel_2D.grid(row=1, column=0)
         lblfrm_axis_sel.grid(row=0, column=0, pady=2)
         #
         cmbx_width = 13
@@ -288,16 +312,6 @@ class MainForm:
         self.plot_main.Canvas.mpl_connect("key_press_event", self._event_form_on_key_press)
         self.plot_main.add_cursor('red')
 
-        #Setup data extraction
-        self.data_thread_pool = ThreadPool(processes=1)
-        self.data_extractor = DataExtractorH5single("swmr.h5", self.data_thread_pool)
-        #
-        self.indep_vars = self.data_extractor.get_independent_vars()
-        self.cmbx_axis_x.update_vals(self.indep_vars)
-        self.cmbx_axis_y.update_vals(self.indep_vars)
-        self.dep_vars = self.data_extractor.get_dependent_vars()
-        self.cmbx_dep_var.update_vals(self.dep_vars)
-
         #Setup analysis cursors
         #Setup a dictionary which maps the cursor name to the cursor prefix...
         self.possible_cursors = {
@@ -315,6 +329,10 @@ class MainForm:
         }
         self.cmbx_anal_cursors.update_vals(self.possible_cursors.keys())
         self._update_analy_cursor_table_widths = False
+
+        self.data_thread_pool = ThreadPool(processes=1)
+        self.reset_ui()
+        #self._open_sqdtoolz_hdf5("swmr.h5")
 
         #Setup the slicing variables
         self.dict_var_slices = {}   #They values are given as: (current index, numpy array of values)
@@ -350,72 +368,83 @@ class MainForm:
         import time
         while True:
             start_time = time.time() 
-
-            if self.data_extractor.data_ready():
-                (indep_params, final_data, dict_rem_slices) = self.data_extractor.get_data()
-                if not self.update_plot_post_proc(indep_params, final_data):
-                    #Not post-processed (hence not plotted) - so do so now...
-                    cur_var_ind = self.dep_vars.index(self.cmbx_dep_var.get_sel_val())
-                    if len(indep_params) == 1:
-                        self.plot_main.plot_data_1D(indep_params[0], final_data[cur_var_ind])
+            if self.data_extractor:
+                if self.data_extractor.data_ready():
+                    (indep_params, final_data, dict_rem_slices) = self.data_extractor.get_data()
+                    if not self.update_plot_post_proc(indep_params, final_data):
+                        #Not post-processed (hence not plotted) - so do so now...
+                        cur_var_ind = self.dep_vars.index(self.cmbx_dep_var.get_sel_val())
+                        if len(indep_params) == 1:
+                            self.plot_main.plot_data_1D(indep_params[0], final_data[cur_var_ind])
+                        else:
+                            self.plot_main.plot_data_2D(indep_params[0], indep_params[1], final_data[cur_var_ind].T)    #Transposed due to pcolor's indexing requirements...
+                    #
+                    #Populate the slice candidates
+                    #
+                    cur_lstbx_vals = []
+                    prev_dict = self.dict_var_slices.copy()
+                    self.dict_var_slices = {}   #Clear previous dictionary and only leave entries if it had previous slices present...
+                    #Gather currently selected value so it stays selected
+                    cur_sel = self.lstbx_slice_vars.get_sel_val(True)
+                    if cur_sel != -1:
+                        cur_var = self.cur_slice_var_keys_lstbx[cur_sel]
                     else:
-                        self.plot_main.plot_data_2D(indep_params[0], indep_params[1], final_data[cur_var_ind].T)    #Transposed due to pcolor's indexing requirements...
-                #
-                #Populate the slice candidates
-                #
-                cur_lstbx_vals = []
-                prev_dict = self.dict_var_slices.copy()
-                self.dict_var_slices = {}   #Clear previous dictionary and only leave entries if it had previous slices present...
-                #Gather currently selected value so it stays selected
-                cur_sel = self.lstbx_slice_vars.get_sel_val(True)
-                if cur_sel != -1:
-                    cur_var = self.cur_slice_var_keys_lstbx[cur_sel]
-                else:
-                    cur_var = ""
-                cur_sel = -1
-                #Update the current list of slicing variables with the new list...
-                self.cur_slice_var_keys_lstbx = []
-                for m, cur_key in enumerate(dict_rem_slices.keys()):
-                    #Check if key already exists
-                    if cur_key in prev_dict:
-                        self.dict_var_slices[cur_key] = (prev_dict[cur_key][0], dict_rem_slices[cur_key])
+                        cur_var = ""
+                    cur_sel = -1
+                    #Update the current list of slicing variables with the new list...
+                    self.cur_slice_var_keys_lstbx = []
+                    for m, cur_key in enumerate(dict_rem_slices.keys()):
+                        #Check if key already exists
+                        if cur_key in prev_dict:
+                            self.dict_var_slices[cur_key] = (prev_dict[cur_key][0], dict_rem_slices[cur_key])
+                        else:
+                            self.dict_var_slices[cur_key] = (0, dict_rem_slices[cur_key])
+                        cur_lstbx_vals += [self._slice_Var_disp_text(cur_key, self.dict_var_slices[cur_key])]
+                        self.cur_slice_var_keys_lstbx += [cur_key]
+                        if cur_var == cur_key:
+                            cur_sel = m
+                    if len(cur_lstbx_vals) > 0 and cur_sel == -1:
+                        #In the beginning, it's a good idea to select the element to kick-start the UI elements
+                        self.lstbx_slice_vars.update_vals(cur_lstbx_vals, select_index=0, generate_selection_event=True)
                     else:
-                        self.dict_var_slices[cur_key] = (0, dict_rem_slices[cur_key])
-                    cur_lstbx_vals += [self._slice_Var_disp_text(cur_key, self.dict_var_slices[cur_key])]
-                    self.cur_slice_var_keys_lstbx += [cur_key]
-                    if cur_var == cur_key:
-                        cur_sel = m
-                if len(cur_lstbx_vals) > 0 and cur_sel == -1:
-                    #In the beginning, it's a good idea to select the element to kick-start the UI elements
-                    self.lstbx_slice_vars.update_vals(cur_lstbx_vals, select_index=0, generate_selection_event=True)
-                else:
-                    self.lstbx_slice_vars.update_vals(cur_lstbx_vals, select_index=cur_sel, generate_selection_event=False)
+                        self.lstbx_slice_vars.update_vals(cur_lstbx_vals, select_index=cur_sel, generate_selection_event=False)
 
-            cursor_changes = self.plot_main.pop_plots_with_cursor_cuts(self.lstbx_cursors)
-            #Analysis cursor update
-            if self._update_analy_cursor_table_widths or cursor_changes:
-                cur_anal_cursor_table = []
-                for cur_curse in self.plot_main.AnalysisCursors:
-                    cur_anal_cursor_table += [(self._update_analy_cursor_item(cur_curse), cur_curse)]
-                self.lstbx_analy_cursors.update_vals(cur_anal_cursor_table, update_widths = self._update_analy_cursor_table_widths)
-                self._update_analy_cursor_table_widths = False
+                cursor_changes = self.plot_main.update_cursors(self.lstbx_cursors)
+                #Cursor update
+                curse_infos = []
+                curse_cols = []
+                for cur_curse in self.plot_main.Cursors:
+                    curse_infos += [ f"X: {cur_curse.cur_coord[0]}, Y: {cur_curse.cur_coord[1]}" ]
+                    curse_cols += [cur_curse.colour]
+                self.lstbx_cursors.update_vals(curse_infos, curse_cols)
+                #Analysis cursor update
+                if self._update_analy_cursor_table_widths or cursor_changes:
+                    cur_anal_cursor_table = []
+                    for cur_curse in self.plot_main.AnalysisCursors:
+                        cur_anal_cursor_table += [(self._update_analy_cursor_item(cur_curse), cur_curse)]
+                    self.lstbx_analy_cursors.update_vals(cur_anal_cursor_table, update_widths = self._update_analy_cursor_table_widths)
+                    self._update_analy_cursor_table_widths = False
 
-            #Setup new request if no new data is being fetched
-            if not self.data_extractor.isFetching:
-                xVar = self.cmbx_axis_x.get_sel_val()
-                slice_vars = {}
-                for cur_var in self.dict_var_slices.keys():
-                    slice_vars[cur_var] = self.dict_var_slices[cur_var][0]
-                if self.plot_dim_type.get() == 1:
-                    self.data_extractor.fetch_data({'axis_vars':[xVar], 'slice_vars':slice_vars})
-                else:
-                    yVar = self.cmbx_axis_y.get_sel_val()
-                    if xVar != yVar:
-                        self.data_extractor.fetch_data({'axis_vars':[xVar, yVar], 'slice_vars':slice_vars})
+                #Setup new request if no new data is being fetched
+                if not self.data_extractor.isFetching:
+                    xVar = self.cmbx_axis_x.get_sel_val()
+                    slice_vars = {}
+                    for cur_var in self.dict_var_slices.keys():
+                        slice_vars[cur_var] = self.dict_var_slices[cur_var][0]
+                    if self.plot_dim_type.get() == 1:
+                        self.data_extractor.fetch_data({'axis_vars':[xVar], 'slice_vars':slice_vars})
+                    else:
+                        yVar = self.cmbx_axis_y.get_sel_val()
+                        if xVar != yVar:
+                            self.data_extractor.fetch_data({'axis_vars':[xVar, yVar], 'slice_vars':slice_vars})
 
             #tkinter.mainloop()
             # self.root.update_idletasks()
-            self.root.update()
+            try:
+                self.root.update()
+            except:
+                #Application destroyed...
+                return
             if time.time() - start_time > 0:
                 print("FPS: ", 1.0 / (time.time() - start_time), end='\r') # FPS = 1 / time to process loop
         # If you put root.destroy() here, it will cause an error if the window is
@@ -508,13 +537,19 @@ class MainForm:
         self.sldr_slice_vars_val.set(cur_slice_var[0])
         self._update_label_slice_var_val()
     def _event_btn_slice_vars_val_inc(self):
-        cur_var_name = self.cur_slice_var_keys_lstbx[self.lstbx_slice_vars.get_sel_val(True)]
+        cur_sel_ind = self.lstbx_slice_vars.get_sel_val(True)
+        if cur_sel_ind == -1:
+            return
+        cur_var_name = self.cur_slice_var_keys_lstbx[cur_sel_ind]
         cur_len = self.dict_var_slices[cur_var_name][1].size
         cur_ind = int(float(self.sldr_slice_vars_val.get()))
         if cur_ind + 1 < cur_len:
             self.sldr_slice_vars_val.set(cur_ind + 1)
     def _event_btn_slice_vars_val_dec(self):
-        cur_var_name = self.cur_slice_var_keys_lstbx[self.lstbx_slice_vars.get_sel_val(True)]
+        cur_sel_ind = self.lstbx_slice_vars.get_sel_val(True)
+        if cur_sel_ind == -1:
+            return
+        cur_var_name = self.cur_slice_var_keys_lstbx[cur_sel_ind]
         cur_ind = int(float(self.sldr_slice_vars_val.get()))
         if cur_ind > 0:
             self.sldr_slice_vars_val.set(cur_ind - 1)
@@ -522,7 +557,10 @@ class MainForm:
         self._slice_vars_set_val(int(float(value)))
     def _slice_vars_set_val(self, new_index):
         #Calculate the index of the array with the value closest to the proposed value
-        cur_var_name = self.cur_slice_var_keys_lstbx[self.lstbx_slice_vars.get_sel_val(True)]
+        cur_sel_ind = self.lstbx_slice_vars.get_sel_val(True)
+        if cur_sel_ind == -1:
+            return
+        cur_var_name = self.cur_slice_var_keys_lstbx[cur_sel_ind]
         if new_index != self.dict_var_slices[cur_var_name][0]:
             #Update the array index
             self.dict_var_slices[cur_var_name] = (new_index, self.dict_var_slices[cur_var_name][1])
@@ -733,17 +771,74 @@ class MainForm:
         else:
             self.btn_proc_list_del.configure(state='normal')
 
-    def _open_file():
+
+    def reset_ui(self):
+        self.data_extractor = None
+        self.indep_vars = None
+        self.dep_vars = None
+        #
+        self.cmbx_axis_x.update_vals([])
+        self.cmbx_axis_x.disable()
+        self.cmbx_axis_y.update_vals([])
+        self.cmbx_axis_y.disable()
+        self.cmbx_dep_var.update_vals([])
+        self.cmbx_dep_var.disable()
+        #
+        self.lstbx_cursors.update_vals([], generate_selection_event=False)
+        self.lstbx_cursors.disable()
+        self.lstbx_slice_vars.update_vals([], generate_selection_event=False)
+        self.lstbx_slice_vars.disable()
+        self.lbl_slice_vars_val['text'] = "Min|Max"
+        #
+        self.plot_dim_type.set(1)
+        self.rdbtn_plot_sel_1D.configure(state='disabled')
+        self.rdbtn_plot_sel_2D.configure(state='disabled')
+        #
+        self.btn_cursor_add.configure(state='disabled')
+        self.btn_cursor_del.configure(state='disabled')
+        self.btn_analy_cursor_add.configure(state='disabled')
+        self.btn_analy_cursor_del.configure(state='disabled')
+    def init_ui(self):
+        self.indep_vars = self.data_extractor.get_independent_vars()
+        self.cmbx_axis_x.update_vals(self.indep_vars)
+        self.cmbx_axis_y.update_vals(self.indep_vars)
+        self.dep_vars = self.data_extractor.get_dependent_vars()
+        self.cmbx_dep_var.update_vals(self.dep_vars)
+        #
+        self.cmbx_axis_x.enable()
+        self.cmbx_axis_y.enable()
+        self.cmbx_dep_var.enable()
+        #
+        self.lstbx_cursors.enable()
+        self.lstbx_slice_vars.enable()
+        #
+        self.plot_dim_type.set(1)
+        self.rdbtn_plot_sel_1D.configure(state='normal')
+        self.rdbtn_plot_sel_2D.configure(state='normal')
+        #
+        self.btn_cursor_add.configure(state='normal')
+        self.btn_cursor_del.configure(state='normal')
+        self.btn_analy_cursor_add.configure(state='normal')
+        self.btn_analy_cursor_del.configure(state='normal')
+
+    def _open_file_hdf5(self):
+        self.reset_ui()
         # file type
         filetypes = (
-            ('HDF5', '*.h5'),
-            ('TSV Data Files', '*.dat')
+            ('SQDToolz HDF5', '*.h5'),
+            #('TSV Data Files', '*.dat')
             #('All files', '*.*')
         )
         # show the open file dialog
-        f = fd.askopenfile(filetypes=filetypes)
+        filename = fd.askopenfile(filetypes=filetypes)
         # read the text file and show its content on the Text
-        text.insert('1.0', f.readlines())
+        if filename:
+            self._open_sqdtoolz_hdf5(filename.name)
+    def _open_sqdtoolz_hdf5(self, file_path):
+        #Setup data extraction
+        self.data_thread_pool = ThreadPool(processes=1)
+        self.data_extractor = DataExtractorH5single(file_path, self.data_thread_pool)
+        self.init_ui()
 
     def _event_btn_PPupdate_plot(self):
         self.cmds_to_execute = ""
@@ -1047,10 +1142,6 @@ class PlotFrame:
         self.Cursors += [new_curse]
         return new_curse
 
-    def update(self):
-        for cur_curse in self.Cursors:
-            cur_curse.update()
-
     def get_axis_size_px(self):
         bbox = self.ax.get_window_extent().transformed(self.fig.dpi_scale_trans.inverted())
         width, height = bbox.width, bbox.height
@@ -1067,7 +1158,7 @@ class PlotFrame:
         else:
             self.ax.plot(self.curData[0], self.curData[1])
         self._cur_2D = False
-        self.update()
+        self.update_cursors()
 
     def _plot_1D(self, cur_ax, dataX, dataY, clearAxis=True, colour = None):
         if clearAxis:
@@ -1104,7 +1195,6 @@ class PlotFrame:
             self.ax.axis(extent)
             #Need the plot_2D here as the restore_region doesn't account for the new extent and won't refresh the pcolor until the next plot update...
             self._plot_2D()
-            self.update()
 
     def _plot_2D(self, replot = False):
         if self._cur_2D:
@@ -1125,8 +1215,7 @@ class PlotFrame:
                 self.ax.axis(extent)
             self.fig.canvas.draw()
             self.bg = self.ax.figure.canvas.copy_from_bbox(self.ax.bbox)
-            self.update()
-            self.pop_plots_with_cursor_cuts()
+            self.update_cursors()
 
     def get_data_limits(self):
         if len(self.curData) > 1:
@@ -1134,10 +1223,12 @@ class PlotFrame:
         else:
             return (0,1,0,1)
 
-    def pop_plots_with_cursor_cuts(self, lstbx_cursor_info=None):
-        #Check if a cursor has moved...
-        if lstbx_cursor_info != None:
-            #If lstbx_cursor_info is None, then it's an internal call to redraw the cursors (e.g. new plot, zoom or home-button has been hit)
+    def update_cursors(self, reset_plots=False):
+        for cur_curse in self.Cursors:
+            cur_curse.update()
+
+        if reset_plots:
+            #If reset_plots is True, then it's an internal call to redraw the cursors (e.g. new plot, zoom or home-button has been hit)
             no_changes = True
             for cur_curse in self.Cursors:
                 if cur_curse.has_changed:
@@ -1170,8 +1261,6 @@ class PlotFrame:
             self._replot_cuts = True
         
         #Plot each cursor's cut...
-        curse_infos = []
-        curse_cols = []
         clear_first_plot = True
         #Reset plot background
         if len(self.curData) == 3:
@@ -1184,12 +1273,8 @@ class PlotFrame:
                 #Update main plot
                 self.ax.draw_artist(cur_curse.lx)
                 self.ax.draw_artist(cur_curse.ly)
-                curse_infos += [ f"X: {cur_curse.cur_coord[0]}, Y: {cur_curse.cur_coord[1]}" ]
-                curse_cols += [cur_curse.colour]
                 clear_first_plot = False
                 cur_curse.has_changed = False
-        if lstbx_cursor_info != None:
-            lstbx_cursor_info.update_vals(curse_infos, curse_cols)
         #Analysis cursors
         changes = False
         for cur_curse in self.AnalysisCursors:
