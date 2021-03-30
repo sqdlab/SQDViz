@@ -47,7 +47,7 @@ class DataExtractorH5single(DataExtractor):
                     #Ensure slice index is in range
                     if params['slice_vars'][cur_param] < self.param_vals[cur_ind].size:
                         cur_slice_ind = params['slice_vars'][cur_param]
-                param_slicer[cur_ind] = np.s_[cur_slice_ind]   #TODO: Change appropriately later to actual slicing index...
+                param_slicer[cur_ind] = np.s_[cur_slice_ind]
 
         cur_shape = [len(x) for x in self.param_vals] + [len(self._dep_params)]
         self.cur_data = self.dset[:].reshape(tuple(x for x in cur_shape))
@@ -57,7 +57,7 @@ class DataExtractorH5single(DataExtractor):
         #Simulate lag...
         time.sleep(2)
 
-        #Extract the data individually and repack them into a list of np-arrays for every dependent variable
+        #Extract the data individually and repack them into a list of nd-arrays for every dependent variable
         param_slicer = tuple(x for x in param_slicer)
         final_data = []
         for ind in range(len(self._dep_params)):

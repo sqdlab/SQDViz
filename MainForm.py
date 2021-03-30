@@ -16,6 +16,7 @@ import numpy as np
 from multiprocessing.pool import ThreadPool
 
 from DataExtractorH5single import*
+from DataExtractorUQtoolsDAT import*
 
 from PostProcessors import*
 from Analysis_Cursors import*
@@ -50,6 +51,8 @@ class MainForm:
         #####################
         self.icon_openhdf5 = PhotoImage(file = "Icons/OpenSQDToolzHDF5.png")    #Need to store reference for otherwise garbage collection destroys it...
         tk.Button(master=frame_toolbar, image=self.icon_openhdf5, command=self._open_file_hdf5).grid(row=0, column=0)
+        self.icon_openDAT = PhotoImage(file = "Icons/OpenSQDToolzDAT.png")    #Need to store reference for otherwise garbage collection destroys it...
+        tk.Button(master=frame_toolbar, image=self.icon_openDAT, command=self._open_file_dat).grid(row=0, column=1)
         #####################
 
         ###################
@@ -332,7 +335,6 @@ class MainForm:
 
         self.data_thread_pool = ThreadPool(processes=1)
         self.reset_ui()
-        #self._open_sqdtoolz_hdf5("swmr.h5")
 
         #Setup the slicing variables
         self.dict_var_slices = {}   #They values are given as: (current index, numpy array of values)
@@ -840,6 +842,25 @@ class MainForm:
         self.data_extractor = DataExtractorH5single(file_path, self.data_thread_pool)
         self.init_ui()
 
+    def _open_file_dat(self):
+        self.reset_ui()
+        # file type
+        filetypes = (
+            ('UQTools DAT', '*.dat'),
+            #('TSV Data Files', '*.dat')
+            #('All files', '*.*')
+        )
+        # show the open file dialog
+        filename = fd.askopenfile(filetypes=filetypes)
+        # read the text file and show its content on the Text
+        if filename:
+            self._open_uqtools_dat(filename.name)
+    def _open_uqtools_dat(self, file_path):
+        #Setup data extraction
+        self.data_thread_pool = ThreadPool(processes=1)
+        self.data_extractor = DataExtractorUQtoolsDAT(file_path, self.data_thread_pool)
+        self.init_ui()
+
     def _event_btn_PPupdate_plot(self):
         self.cmds_to_execute = ""
         #Function declarations
@@ -1228,6 +1249,8 @@ class PlotFrame:
     def _reset_cursors(self):
         for cur_curse in self.Cursors:
             cur_curse.update()
+        for cur_curse in self.AnalysisCursors:
+            cur_curse.reset_cursor()
 
     def update_cursors(self, reset_plots=True):
         #Check if a cursor has moved...
