@@ -409,7 +409,7 @@ class MainForm:
                     else:
                         self.lstbx_slice_vars.update_vals(cur_lstbx_vals, select_index=cur_sel, generate_selection_event=False)
 
-                cursor_changes = self.plot_main.update_cursors(self.lstbx_cursors)
+                cursor_changes = self.plot_main.update_cursors()
                 #Cursor update
                 curse_infos = []
                 curse_cols = []
@@ -1158,7 +1158,8 @@ class PlotFrame:
         else:
             self.ax.plot(self.curData[0], self.curData[1])
         self._cur_2D = False
-        self.update_cursors()
+        self._reset_cursors()
+        self.update_cursors(True)
 
     def _plot_1D(self, cur_ax, dataX, dataY, clearAxis=True, colour = None):
         if clearAxis:
@@ -1215,7 +1216,8 @@ class PlotFrame:
                 self.ax.axis(extent)
             self.fig.canvas.draw()
             self.bg = self.ax.figure.canvas.copy_from_bbox(self.ax.bbox)
-            self.update_cursors()
+            self._reset_cursors()
+            self.update_cursors(False)
 
     def get_data_limits(self):
         if len(self.curData) > 1:
@@ -1223,12 +1225,14 @@ class PlotFrame:
         else:
             return (0,1,0,1)
 
-    def update_cursors(self, reset_plots=False):
+    def _reset_cursors(self):
         for cur_curse in self.Cursors:
             cur_curse.update()
 
+    def update_cursors(self, reset_plots=True):
+        #Check if a cursor has moved...
         if reset_plots:
-            #If reset_plots is True, then it's an internal call to redraw the cursors (e.g. new plot, zoom or home-button has been hit)
+            #If lstbx_cursor_info is None, then it's an internal call to redraw the cursors (e.g. new plot, zoom or home-button has been hit)
             no_changes = True
             for cur_curse in self.Cursors:
                 if cur_curse.has_changed:
