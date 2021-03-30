@@ -27,8 +27,11 @@ class Analysis_Cursor:
     def Dragging(self):
         return self._is_drag != 'None'
 
+    def reset_cursor(self):
+        raise NotImplementedError()
+
     def prepare_plot(self, pltfrm, ax):
-        #NOTE: MUST CALL THIS IN SUPER FIRST!
+        #NOTE: MUST CALL THIS IN SUPER() FIRST!
         self.ax = ax
         self.pltfrm = pltfrm
         self.pltfrm.Canvas.mpl_connect('motion_notify_event', self._move_cursor)
@@ -121,6 +124,23 @@ class AC_Xregion(Analysis_Cursor):
         super().prepare_plot(pltfrm, ax)
         self.rect = Rectangle((self.x1,0.0), 0.1, 0.1, angle=0.0, facecolor='none', edgecolor='black', hatch=self._fill)
         self.ax.add_patch(self.rect)
+
+    def reset_cursor(self):
+        lims = self.pltfrm.get_data_limits()
+        if self.x1 < lims[0]:
+            self.x1 = lims[0]
+        if self.x1 > lims[1]:
+            self.x1 = lims[1]
+        if self.x2 < lims[0]:
+            self.x2 = lims[0]
+        if self.x2 > lims[1]:
+            self.x2 = lims[1]
+
+        if abs(self.x1-self.x2)/(lims[1]-lims[0]) < 0.005:
+            if abs(lims[0] - self.x1) > abs(lims[1] - self.x1):
+                self.x2 = (lims[0] + self.x2) * 0.5
+            else:
+                self.x2 = (lims[1] + self.x2) * 0.5
 
     def delete_from_plot(self):
         if self.rect:
