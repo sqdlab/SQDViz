@@ -103,13 +103,16 @@ class DataExtractorUQtoolsDAT(DataExtractor):
                 data_all[:, axis_var[m]] = sort_idx[np.searchsorted(indep_params[m], cur_col_vals, sorter = sort_idx)]
 
             #Run through the rows and fill the array - TODO: this should be vectorised...
-            final_data = [np.empty((len(xVars),len(yVars),))] * len(self._dep_param_name_inds)
+            final_data = [np.empty((len(xVars),len(yVars),)) for x in range(len(self._dep_param_name_inds))]    #Using list-multiply just copies the same array instead of instantiating a new one...
             for m in range(len(final_data)):
                 final_data[m][:] = np.nan
             for m in range(data_all.shape[0]):
                 for ind, cur_dep in enumerate(self._dep_param_name_inds):
                     final_data[ind][ int(data_all[m,axis_var[0]]) , int(data_all[m,axis_var[1]]) ] = data_all[m,cur_dep[1]]
         
+        #Simulate lag... Otherwise it lags the UI...
+        time.sleep(2)
+
         return (indep_params, final_data, dict_rem_slices)
 
     def get_independent_vars(self):
