@@ -906,6 +906,10 @@ class MainForm:
             self.lbl_procs_errors['text'] = f"Add functions to activate postprocessing."
             return False
 
+        if len(indep_params) == 1:
+            self.lbl_procs_errors['text'] = f"Currently postprocessing in 1D plots is unsupported."
+            return False
+
         #Data declarations
         data = {}
         for ind, cur_dep_var in enumerate(self.dep_vars):
@@ -1227,6 +1231,8 @@ class PlotFrame:
             self.ax.plot(self.curData[0], self.curData[1], color = colour)
         else:
             self.ax.plot(self.curData[0], self.curData[1])
+        self.fig.canvas.draw()
+        self.bg = self.ax.figure.canvas.copy_from_bbox(self.ax.bbox)
         self._cur_2D = False
         self._reset_cursors()
         self.update_cursors(True)
@@ -1348,18 +1354,14 @@ class PlotFrame:
         #Plot each cursor's cut...
         clear_first_plot = True
         #Reset plot background
-        if len(self.curData) == 3:
-            self.ax.figure.canvas.restore_region(self.bg)
+        self.ax.figure.canvas.restore_region(self.bg)
         #Main cursors
         for cur_curse in self.Cursors:
-            if len(self.curData) < 3:
-                return np.array([])
-            else:
-                #Update main plot
-                self.ax.draw_artist(cur_curse.lx)
-                self.ax.draw_artist(cur_curse.ly)
-                clear_first_plot = False
-                cur_curse.has_changed = False
+            #Update main plot
+            self.ax.draw_artist(cur_curse.lx)
+            self.ax.draw_artist(cur_curse.ly)
+            clear_first_plot = False
+            cur_curse.has_changed = False
         #Analysis cursors
         changes = False
         for cur_curse in self.AnalysisCursors:
