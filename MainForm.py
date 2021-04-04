@@ -12,6 +12,7 @@ from matplotlib.figure import Figure
 from matplotlib.widgets import Cursor
 from matplotlib.colors import LinearSegmentedColormap
 import matplotlib.colors as mplcols
+from matplotlib.backend_tools import ToolBase
 
 import numpy as np
 from multiprocessing.pool import ThreadPool
@@ -65,7 +66,7 @@ class MainForm:
         ###################
         #MAIN PLOT DISPLAY#
         ###################
-        self.plot_main = PlotFrame(self.pw_lhs)
+        self.plot_main = PlotFrame(self.pw_lhs, self._event_btn_plot_main_update)
         self.pw_lhs.add(self.plot_main.Frame,stretch='always')
         ###################
         #
@@ -180,7 +181,10 @@ class MainForm:
         self.chkbx_hist_eq = tk.Checkbutton(lblfrm_plot_params, text = "Histogram equalisation", var=self.hist_eq_enabled_var, command=self._callback_chkbx_hist_eq_enabled)
         self.chkbx_hist_eq.grid(row=5, column=0, sticky='se', pady=2)
         #
-        for m in range(6):
+        self.cmbx_update_rate = ComboBoxEx(lblfrm_plot_params, "Update", width=cmbx_width)
+        self.cmbx_update_rate.Frame.grid(row=6, column=0, sticky='se', pady=2)
+        #
+        for m in range(7):
             lblfrm_plot_params.rowconfigure(m, weight=1)
         lblfrm_plot_params.columnconfigure(0, weight=1)
         #
@@ -339,6 +343,13 @@ class MainForm:
         self.data_thread_pool = ThreadPool(processes=1)
         self.reset_ui()
 
+        #Setup update rates
+        self.update_times = [0, 1, 2, 5, 10, 30, 60]
+        #Zero is manual updating
+        update_strs = ["Manual"] + [f"{x}s" for x in self.update_times[1:]]
+        self.cmbx_update_rate.update_vals(update_strs)
+        self.man_update_plot = False
+
         #Setup the slicing variables
         self.dict_var_slices = {}   #They values are given as: (current index, numpy array of values)
         self.cur_slice_var_keys_lstbx = []
@@ -367,12 +378,13 @@ class MainForm:
         #Give about 171 pixels for the bottom cursors
         cur_height = self.pw_lhs.winfo_height()
         self.pw_lhs.sash_place(0, 1, int(cur_height-171))
-        
+        #Initial update time-stamp
+        self.last_update_time = time.time()        
 
     def main_loop(self):
         import time
         while True:
-            start_time = time.time() 
+            start_time = time.time()
             if self.data_extractor:
                 if self.data_extractor.data_ready():
                     (indep_params, final_data, dict_rem_slices) = self.data_extractor.get_data()
@@ -414,6 +426,10 @@ class MainForm:
                     else:
                         self.lstbx_slice_vars.update_vals(cur_lstbx_vals, select_index=cur_sel, generate_selection_event=False)
 
+                    #Setup next-update time-stamp and clear manual update flag...
+                    self.last_update_time = time.time()
+                    self.man_update_plot = False
+
                 cursor_changes = self.plot_main.update_cursors()
                 #Cursor update
                 curse_infos = []
@@ -432,16 +448,21 @@ class MainForm:
 
                 #Setup new request if no new data is being fetched
                 if not self.data_extractor.isFetching:
-                    xVar = self.cmbx_axis_x.get_sel_val()
-                    slice_vars = {}
-                    for cur_var in self.dict_var_slices.keys():
-                        slice_vars[cur_var] = self.dict_var_slices[cur_var][0]
-                    if self.plot_dim_type.get() == 1:
-                        self.data_extractor.fetch_data({'axis_vars':[xVar], 'slice_vars':slice_vars})
-                    else:
-                        yVar = self.cmbx_axis_y.get_sel_val()
-                        if xVar != yVar:
-                            self.data_extractor.fetch_data({'axis_vars':[xVar, yVar], 'slice_vars':slice_vars})
+                    #Get current update time
+                    cur_update_time = self.update_times[self.cmbx_update_rate.get_sel_val(True)]
+                    cur_elapsed = time.time() - self.last_update_time
+                    #Request new data if it's time to update (i.e. comparing the time since last update with a non-zero update time)
+                    if self.man_update_plot or (cur_update_time > 0 and cur_elapsed > cur_update_time):
+                        xVar = self.cmbx_axis_x.get_sel_val()
+                        slice_vars = {}
+                        for cur_var in self.dict_var_slices.keys():
+                            slice_vars[cur_var] = self.dict_var_slices[cur_var][0]
+                        if self.plot_dim_type.get() == 1:
+                            self.data_extractor.fetch_data({'axis_vars':[xVar], 'slice_vars':slice_vars})
+                        else:
+                            yVar = self.cmbx_axis_y.get_sel_val()
+                            if xVar != yVar:
+                                self.data_extractor.fetch_data({'axis_vars':[xVar, yVar], 'slice_vars':slice_vars})
 
             #tkinter.mainloop()
             # self.root.update_idletasks()
@@ -465,6 +486,8 @@ class MainForm:
             self.cmbx_axis_y.enable()
             self.cmbx_ckey.enable()
 
+    def _event_btn_plot_main_update(self):
+        self.man_update_plot = True
 
     def _update_analy_cursor_item(self, analy_cursor):
         if analy_cursor.Visible:
@@ -1127,9 +1150,8 @@ class HistEqNormalize(mplcols.Normalize):
         #Note that value is a masked array of all the values to be plotted!
         return value.argsort().argsort()/(value.size-1)
 
-
 class PlotFrame:
-    def __init__(self, root_ui):
+    def __init__(self, root_ui, update_func = None):
         self.fig = Figure(figsize=(1,1))
         t = np.arange(0, 3, .01)
         #self.ax = self.fig.gca() #fig.add_subplot(111)
@@ -1148,6 +1170,11 @@ class PlotFrame:
 
         self.Canvas = FigureCanvasTkAgg(self.fig, master = self.Frame)
         self.ToolBar = NavigationToolbar2TkEx(self.Canvas, self.Frame, self)
+        if update_func != None:
+            self.icon_update = PhotoImage(file = "Icons/UpdatePlots.png")    #Need to store reference for otherwise garbage collection destroys it...
+            btn_update = tk.Button(master=self.ToolBar, image=self.icon_update, command=update_func)
+            btn_update.pack(side="left")
+
         self.ToolBar.update()
         self.ToolBar.grid_configure(row=0,column=0,sticky='nsew')
         self.Canvas.get_tk_widget().grid(row=1,column=0,sticky='nsew')

@@ -111,7 +111,7 @@ class DataExtractorUQtoolsDAT(DataExtractor):
                     final_data[ind][ int(data_all[m,axis_var[0]]) , int(data_all[m,axis_var[1]]) ] = data_all[m,cur_dep[1]]
         
         #Simulate lag... Otherwise it lags the UI...
-        time.sleep(2)
+        # time.sleep(2)
 
         return (indep_params, final_data, dict_rem_slices)
 

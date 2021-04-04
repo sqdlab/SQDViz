@@ -55,7 +55,7 @@ class DataExtractorH5single(DataExtractor):
         # param_slicer = tuple(x for x in param_slicer)
 
         #Simulate lag...
-        time.sleep(2)
+        # time.sleep(2)
 
         #Extract the data individually and repack them into a list of nd-arrays for every dependent variable
         param_slicer = tuple(x for x in param_slicer)

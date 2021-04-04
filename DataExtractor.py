@@ -19,7 +19,9 @@ class DataExtractor:
         while not self.async_result.ready():
             pass
         self.isFetching = False
-        return self.async_result.get()
+        ret_val = self.async_result.get()
+        self.async_result = None
+        return ret_val
 
     def _get_current_data(self, params):
         raise NotImplementedError()
