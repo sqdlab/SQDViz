@@ -11,6 +11,7 @@ from matplotlib.backend_bases import (key_press_handler, MouseButton)
 from matplotlib.figure import Figure
 from matplotlib.widgets import Cursor
 from matplotlib.colors import LinearSegmentedColormap
+import matplotlib.colors as mplcols
 
 import numpy as np
 from multiprocessing.pool import ThreadPool
@@ -174,7 +175,9 @@ class MainForm:
         self.cmbx_ckey.Frame.grid(row=4, column=0, sticky='se', pady=2)
         self.cmbx_ckey.combobox.bind("<<ComboboxSelected>>", self._event_cmbxCKey_changed)
         #
-        self.chkbx_hist_eq = tk.Checkbutton(lblfrm_plot_params, text = "Histogram equalisation")
+        self.hist_eq_enabled_var = tk.BooleanVar()
+        self.hist_eq_enabled_var.set(False)
+        self.chkbx_hist_eq = tk.Checkbutton(lblfrm_plot_params, text = "Histogram equalisation", var=self.hist_eq_enabled_var, command=self._callback_chkbx_hist_eq_enabled)
         self.chkbx_hist_eq.grid(row=5, column=0, sticky='se', pady=2)
         #
         for m in range(6):
@@ -310,7 +313,7 @@ class MainForm:
             self.colour_maps.append(ColourMap.fromDefault(cur_col_map[0], cur_col_map[1]))
         #Commit colour maps to ComboBox
         self.cmbx_ckey.update_vals([x.Name for x in self.colour_maps])
-        self.plot_main.set_colour_key(self.colour_maps[self.cmbx_ckey.get_sel_val(True)])
+        self.plot_main.set_colour_key(self.colour_maps[self.cmbx_ckey.get_sel_val(True)], False)
 
         self.plot_main.Canvas.mpl_connect("key_press_event", self._event_form_on_key_press)
         self.plot_main.add_cursor('red')
@@ -577,7 +580,11 @@ class MainForm:
         key_press_handler(event, self.plot_main.Canvas, self.plot_main.ToolBar)
     
     def _event_cmbxCKey_changed(self, event):
-        self.plot_main.set_colour_key(self.colour_maps[self.cmbx_ckey.get_sel_val(True)])
+        self._update_plot_col_map()
+    def _callback_chkbx_hist_eq_enabled(self):
+        self._update_plot_col_map()
+    def _update_plot_col_map(self):
+        self.plot_main.set_colour_key(self.colour_maps[self.cmbx_ckey.get_sel_val(True)], self.hist_eq_enabled_var.get())
 
     def _event_lstbxPPfunction_changed(self, event):
         self.lbl_proc_sel_desc.Label['text'] = "Description: " + self.post_procs_all[self.lstbx_procs.get_sel_val()].get_description()
@@ -1109,6 +1116,18 @@ class NavigationToolbar2TkEx(NavigationToolbar2Tk):
         #Need the plot_2D here as the restore_region doesn't account for the new zoomed extent and won't refresh the pcolor until the next plot update...
         self._pltfrm._plot_2D()
 
+class HistEqNormalize(mplcols.Normalize):
+    def __init__(self, data_array, num_bins = 256, clip=False):
+        if data_array.size == 0:
+            mplcols.Normalize.__init__(self, 0, 1, clip)
+        else:
+            mplcols.Normalize.__init__(self, np.min(data_array), np.max(data_array), clip)
+
+    def __call__(self, value, clip=None):
+        #Note that value is a masked array of all the values to be plotted!
+        return value.argsort().argsort()/(value.size-1)
+
+
 class PlotFrame:
     def __init__(self, root_ui):
         self.fig = Figure(figsize=(1,1))
@@ -1143,6 +1162,9 @@ class PlotFrame:
         self._cur_col_key = 'viridis'
         self._cur_2D = False
         self._replot_cuts = False
+        #
+        self.hist_eq = None
+        self.hist_eq_enabled = False
 
         self.Canvas.mpl_connect('button_press_event', self.event_mouse_pressed)
 
@@ -1207,8 +1229,9 @@ class PlotFrame:
         self._cur_2D = True
         self._plot_2D(replot)
 
-    def set_colour_key(self, new_col_key):
+    def set_colour_key(self, new_col_key, hist_eq_enabled):
         self._cur_col_key = new_col_key
+        self.hist_eq_enabled = hist_eq_enabled
         self._plot_2D()
 
     def reset_plot(self):
@@ -1232,7 +1255,15 @@ class PlotFrame:
                 if extent[3] > a: extent[3] = a
             
             self.ax.clear()
-            self.ax.pcolor(self.curData[0], self.curData[1], self.curData[2], shading='nearest', cmap=self._cur_col_key.CMap)
+
+            if self.hist_eq_enabled:
+                if self.hist_eq != None:
+                    del self.hist_eq
+                self.hist_eq = HistEqNormalize(self.curData[2])
+                self.ax.pcolor(self.curData[0], self.curData[1], self.curData[2], norm=self.hist_eq, shading='nearest', cmap=self._cur_col_key.CMap)
+            else:
+                self.ax.pcolor(self.curData[0], self.curData[1], self.curData[2], shading='nearest', cmap=self._cur_col_key.CMap)
+
             if not replot:
                 self.ax.axis(extent)
             self.fig.canvas.draw()
