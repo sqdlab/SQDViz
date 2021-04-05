@@ -22,9 +22,12 @@ sweep_grids = np.vstack([x.flatten() for x in sweep_grids]).T
 # sweep_grids = np.array(sweep_grids).T.reshape(-1,len(sweep_arrays))
 
 #data_arr = np.stack([(1-np.exp(-sweep_grids[:,1]))/(1+sweep_grids[:,0]**2/sweep_grids[:,1])]).T
-data_arr = np.stack([(1-np.exp(-sweep_grids[:,2]))/(1+(sweep_grids[:,1]-sweep_grids[:,0])**2/sweep_grids[:,2]),
-                 -0.5*(1-np.exp(-sweep_grids[:,2]))/(1+(sweep_grids[:,1]-sweep_grids[:,0])**2/sweep_grids[:,2])]).T
-
+data_arr = np.stack([
+                     1.0+0.1*(1-np.exp(-sweep_grids[:,2]))/(1+(sweep_grids[:,1]-sweep_grids[:,0])**2/sweep_grids[:,2]) + 0.01*np.random.rand(sweep_grids.shape[0]),
+                     1.0-0.09*(1-np.exp(-sweep_grids[:,2]))/(1+(sweep_grids[:,1]-sweep_grids[:,0])**2/sweep_grids[:,2] + 0.01*np.random.rand(sweep_grids.shape[0]))
+                     ]).T
+data_arr[-10][0] = 100
+data_arr[-20][0] = 100
 arr = np.zeros(data_arr.shape)
 arr[:] = np.nan
 dset = hf.create_dataset("data", data=arr, compression="gzip")#, chunks=(2,)
