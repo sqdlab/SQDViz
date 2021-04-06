@@ -18,6 +18,7 @@ import numpy as np
 from multiprocessing.pool import ThreadPool
 
 from DataExtractorH5single import*
+from DataExtractorH5multiple import*
 from DataExtractorUQtoolsDAT import*
 
 from PostProcessors import*
@@ -53,8 +54,10 @@ class MainForm:
         #####################
         self.icon_openhdf5 = PhotoImage(file = "Icons/OpenSQDToolzHDF5.png")    #Need to store reference for otherwise garbage collection destroys it...
         tk.Button(master=frame_toolbar, image=self.icon_openhdf5, command=self._open_file_hdf5).grid(row=0, column=0)
+        self.icon_openhdf5folders = PhotoImage(file = "Icons/OpenSQDToolzHDF5folder.png")    #Need to store reference for otherwise garbage collection destroys it...
+        tk.Button(master=frame_toolbar, image=self.icon_openhdf5folders, command=self._open_file_hdf5folders).grid(row=0, column=1)
         self.icon_openDAT = PhotoImage(file = "Icons/OpenSQDToolzDAT.png")    #Need to store reference for otherwise garbage collection destroys it...
-        tk.Button(master=frame_toolbar, image=self.icon_openDAT, command=self._open_file_dat).grid(row=0, column=1)
+        tk.Button(master=frame_toolbar, image=self.icon_openDAT, command=self._open_file_dat).grid(row=0, column=2)
         #####################
 
         ###################
@@ -870,6 +873,25 @@ class MainForm:
         #Setup data extraction
         self.data_thread_pool = ThreadPool(processes=1)
         self.data_extractor = DataExtractorH5single(file_path, self.data_thread_pool)
+        self.init_ui()
+
+    def _open_file_hdf5folders(self):
+        self.reset_ui()
+        # file type
+        filetypes = (
+            ('SQDToolz HDF5', '*.h5'),
+            #('TSV Data Files', '*.dat')
+            #('All files', '*.*')
+        )
+        # show the open file dialog
+        filename = fd.askopenfile(filetypes=filetypes)
+        # read the text file and show its content on the Text
+        if filename:
+            self._open_sqdtoolz_hdf5folders(filename.name)
+    def _open_sqdtoolz_hdf5folders(self, file_path):
+        #Setup data extraction
+        self.data_thread_pool = ThreadPool(processes=1)
+        self.data_extractor = DataExtractorH5multiple(file_path, self.data_thread_pool)
         self.init_ui()
 
     def _open_file_dat(self):
