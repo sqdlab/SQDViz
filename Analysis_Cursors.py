@@ -97,11 +97,12 @@ class Analysis_Cursor:
         raise NotImplementedError()
 
 class AC_Xregion(Analysis_Cursor):
-    def __init__(self, name):
+    def __init__(self, name, colour='black'):
         super().__init__(name)
         self.x1 = 0
         self.x2 = 0.1
         self._fill = '/'
+        self.colour = colour
 
     @property
     def Type(self):
@@ -122,7 +123,7 @@ class AC_Xregion(Analysis_Cursor):
 
     def prepare_plot(self, pltfrm, ax):
         super().prepare_plot(pltfrm, ax)
-        self.rect = Rectangle((self.x1,0.0), 0.1, 0.1, angle=0.0, facecolor='none', edgecolor='black', hatch=self._fill)
+        self.rect = Rectangle((self.x1,0.0), 0.1, 0.1, angle=0.0, facecolor='none', edgecolor=self.colour, hatch=self._fill)
         self.ax.add_patch(self.rect)
 
     def reset_cursor(self):

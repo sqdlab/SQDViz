@@ -13,6 +13,7 @@ from matplotlib.widgets import Cursor
 from matplotlib.colors import LinearSegmentedColormap
 import matplotlib.colors as mplcols
 from matplotlib.backend_tools import ToolBase
+from matplotlib import style as mplstyle
 
 import numpy as np
 from multiprocessing.pool import ThreadPool
@@ -27,9 +28,15 @@ from Analysis_Cursors import*
 from functools import partial
 
 class MainForm:
-    def __init__(self):
+    def __init__(self, dark_mode = False):
         self.root = tk.Tk()
         self.root.wm_title("SQDviz - Data visualisation tool")
+
+        if dark_mode:
+            self.root.tk.call('source', 'azure-dark.tcl')
+            style = ttk.Style(self.root)
+            style.theme_use('azure-dark')
+        self.dark_mode = dark_mode
 
         frame_overall = Frame(master=self.root)
         frame_toolbar = Frame(master=frame_overall)
@@ -53,11 +60,11 @@ class MainForm:
         #      TOOLBAR
         #####################
         self.icon_openhdf5 = PhotoImage(file = "Icons/OpenSQDToolzHDF5.png")    #Need to store reference for otherwise garbage collection destroys it...
-        tk.Button(master=frame_toolbar, image=self.icon_openhdf5, command=self._open_file_hdf5).grid(row=0, column=0)
+        Button(master=frame_toolbar, image=self.icon_openhdf5, command=self._open_file_hdf5).grid(row=0, column=0)
         self.icon_openhdf5folders = PhotoImage(file = "Icons/OpenSQDToolzHDF5folder.png")    #Need to store reference for otherwise garbage collection destroys it...
-        tk.Button(master=frame_toolbar, image=self.icon_openhdf5folders, command=self._open_file_hdf5folders).grid(row=0, column=1)
+        Button(master=frame_toolbar, image=self.icon_openhdf5folders, command=self._open_file_hdf5folders).grid(row=0, column=1)
         self.icon_openDAT = PhotoImage(file = "Icons/OpenSQDToolzDAT.png")    #Need to store reference for otherwise garbage collection destroys it...
-        tk.Button(master=frame_toolbar, image=self.icon_openDAT, command=self._open_file_dat).grid(row=0, column=2)
+        Button(master=frame_toolbar, image=self.icon_openDAT, command=self._open_file_dat).grid(row=0, column=2)
         #####################
 
         ###################
@@ -69,7 +76,7 @@ class MainForm:
         ###################
         #MAIN PLOT DISPLAY#
         ###################
-        self.plot_main = PlotFrame(self.pw_lhs, self._event_btn_plot_main_update)
+        self.plot_main = PlotFrame(self.pw_lhs, self._event_btn_plot_main_update, dark_mode)
         self.pw_lhs.add(self.plot_main.Frame,stretch='always')
         ###################
         #
@@ -96,9 +103,9 @@ class MainForm:
         #
         ####################
         #ADD/REMOVE BUTTONS#
-        self.btn_cursor_add = tk.Button(master=self.frame_cursors, text ="Add cursor", command = lambda: self.plot_main.add_cursor())
+        self.btn_cursor_add = Button(master=self.frame_cursors, text ="Add cursor", command = lambda: self.plot_main.add_cursor())
         self.btn_cursor_add.grid(row=1, column=0)
-        self.btn_cursor_del = tk.Button(master=self.frame_cursors, text ="Delete cursor", command = lambda: self.plot_main.Cursors.pop(self.lstbx_cursors.get_sel_val(True)))
+        self.btn_cursor_del = Button(master=self.frame_cursors, text ="Delete cursor", command = lambda: self.plot_main.Cursors.pop(self.lstbx_cursors.get_sel_val(True)))
         self.btn_cursor_del.grid(row=1, column=1)
         ####################
         #
@@ -124,9 +131,9 @@ class MainForm:
         #ADD/REMOVE BUTTONS#
         self.cmbx_anal_cursors = ComboBoxEx(self.frame_analy_cursors, "")
         self.cmbx_anal_cursors.Frame.grid(row=1, column=0)
-        self.btn_analy_cursor_add = tk.Button(master=self.frame_analy_cursors, text ="Add cursor", command = self._event_btn_anal_cursor_add)
+        self.btn_analy_cursor_add = Button(master=self.frame_analy_cursors, text ="Add cursor", command = self._event_btn_anal_cursor_add)
         self.btn_analy_cursor_add.grid(row=1, column=1)
-        self.btn_analy_cursor_del = tk.Button(master=self.frame_analy_cursors, text ="Delete", command = self._event_btn_anal_cursor_del)
+        self.btn_analy_cursor_del = Button(master=self.frame_analy_cursors, text ="Delete", command = self._event_btn_anal_cursor_del)
         self.btn_analy_cursor_del.grid(row=1, column=2)
         ####################
         #
@@ -158,9 +165,9 @@ class MainForm:
         #Labelled frame container with the radio buttons stored in the variable self.plot_dim_type
         self.plot_dim_type = tk.IntVar()
         lblfrm_axis_sel = LabelFrame(master=lblfrm_plot_params, text="Plot Axes", padx=10, pady=2)
-        self.rdbtn_plot_sel_1D = tk.Radiobutton(lblfrm_axis_sel, text="1D Plot", padx = 20, variable=self.plot_dim_type, value=1, command=self._event_plotsel_changed)
+        self.rdbtn_plot_sel_1D = ttk.Radiobutton(lblfrm_axis_sel, text="1D Plot", variable=self.plot_dim_type, value=1, command=self._event_plotsel_changed)
         self.rdbtn_plot_sel_1D.grid(row=0, column=0)
-        self.rdbtn_plot_sel_2D = tk.Radiobutton(lblfrm_axis_sel, text="2D Plot", padx = 20, variable=self.plot_dim_type, value=2, command=self._event_plotsel_changed)
+        self.rdbtn_plot_sel_2D = ttk.Radiobutton(lblfrm_axis_sel, text="2D Plot", variable=self.plot_dim_type, value=2, command=self._event_plotsel_changed)
         self.rdbtn_plot_sel_2D.grid(row=1, column=0)
         lblfrm_axis_sel.grid(row=0, column=0, pady=2)
         #
@@ -181,7 +188,7 @@ class MainForm:
         #
         self.hist_eq_enabled_var = tk.BooleanVar()
         self.hist_eq_enabled_var.set(False)
-        self.chkbx_hist_eq = tk.Checkbutton(lblfrm_plot_params, text = "Histogram equalisation", var=self.hist_eq_enabled_var, command=self._callback_chkbx_hist_eq_enabled)
+        self.chkbx_hist_eq = ttk.Checkbutton(lblfrm_plot_params, text = "Histogram equalisation", var=self.hist_eq_enabled_var, command=self._callback_chkbx_hist_eq_enabled)
         self.chkbx_hist_eq.grid(row=5, column=0, sticky='se', pady=2)
         #
         self.cmbx_update_rate = ComboBoxEx(lblfrm_plot_params, "Update", width=cmbx_width)
@@ -206,14 +213,17 @@ class MainForm:
         #
         self.sldr_slice_vars_val = ttk.Scale(lblfrm_slice_vars, from_=0, to=1, orient='horizontal', command=self._event_sldr_slice_vars_val_changed)
         self.sldr_slice_vars_val.grid(row=2, column=0, sticky='sew')
-        self.btn_slice_vars_val_inc = tk.Button(lblfrm_slice_vars, text="❰", command=self._event_btn_slice_vars_val_dec)
-        self.btn_slice_vars_val_dec = tk.Button(lblfrm_slice_vars, text="❱", command=self._event_btn_slice_vars_val_inc)
+        self.btn_slice_vars_val_inc = Button(lblfrm_slice_vars, text="❰", command=self._event_btn_slice_vars_val_dec)
+        self.btn_slice_vars_val_dec = Button(lblfrm_slice_vars, text="❱", command=self._event_btn_slice_vars_val_inc)
         self.btn_slice_vars_val_inc.grid(row=2,column=1)
         self.btn_slice_vars_val_dec.grid(row=2,column=2)
         #
         lblfrm_slice_vars.columnconfigure(0, weight=1)
-        lblfrm_slice_vars.columnconfigure(1, weight=0)
-        lblfrm_slice_vars.columnconfigure(2, weight=0)
+        lblfrm_slice_vars.columnconfigure(1, weight=1)
+        lblfrm_slice_vars.columnconfigure(2, weight=1)
+        lblfrm_slice_vars.rowconfigure(0, weight=1)
+        lblfrm_slice_vars.rowconfigure(1, weight=0)
+        lblfrm_slice_vars.rowconfigure(2, weight=0)
         lblfrm_slice_vars.grid(row=0,column=1,sticky='news')
         #################
         #
@@ -528,8 +538,12 @@ class MainForm:
             new_sym = prev_syms[random.randint(0, len(prev_syms)-1)]
 
         ###ADD NEW ANALYSIS CURSORS HERE###
+        if self.dark_mode:
+            curse_col = 'white'
+        else:
+            curse_col = 'black'
         if cur_sel == 'X-Region':
-            new_obj = AC_Xregion(new_name)
+            new_obj = AC_Xregion(new_name, curse_col)
             self.plot_main.AnalysisCursors += [new_obj]
         #
         new_obj.SymbolFill = new_sym
@@ -714,7 +728,7 @@ class MainForm:
         cur_proc = self.cur_post_procs[cur_ind]
         
         row_off = 0
-        chkbx_enabled = Checkbutton(self.frm_proc_disp, text = "Enabled", variable=self.post_procs_enabled_chkbx_var, command=partial(self._callback_chkbx_post_procs_disp_enabled, cur_proc))
+        chkbx_enabled = ttk.Checkbutton(self.frm_proc_disp, text = "Enabled", variable=self.post_procs_enabled_chkbx_var, command=partial(self._callback_chkbx_post_procs_disp_enabled, cur_proc))
         self.post_procs_enabled_chkbx_var.set(cur_proc['Enabled'])
         chkbx_enabled.grid(row=row_off, column=0)
         self.frm_proc_disp_children.append(chkbx_enabled)
@@ -1177,7 +1191,9 @@ class HistEqNormalize(mplcols.Normalize):
         return value.argsort().argsort()/(value.size-1)
 
 class PlotFrame:
-    def __init__(self, root_ui, update_func = None):
+    def __init__(self, root_ui, update_func = None, dark_mode = False):
+        if dark_mode:
+            mplstyle.use('dark_background')
         self.fig = Figure(figsize=(1,1))
         t = np.arange(0, 3, .01)
         #self.ax = self.fig.gca() #fig.add_subplot(111)
@@ -1198,7 +1214,7 @@ class PlotFrame:
         self.ToolBar = NavigationToolbar2TkEx(self.Canvas, self.Frame, self)
         if update_func != None:
             self.icon_update = PhotoImage(file = "Icons/UpdatePlots.png")    #Need to store reference for otherwise garbage collection destroys it...
-            btn_update = tk.Button(master=self.ToolBar, image=self.icon_update, command=update_func)
+            btn_update = Button(master=self.ToolBar, image=self.icon_update, command=update_func)
             btn_update.pack(side="left")
 
         self.ToolBar.update()
@@ -1571,6 +1587,8 @@ class MultiColumnListbox(object):
 
     def del_sel_val(self):
         items = [m for m in self.tree.selection()]
+        if len(items) == 0:
+            return -1
         values = self.tree.item(items[0])['values']
         self.tree.delete(items[0])
         if len(values) == 0:
