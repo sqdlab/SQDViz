@@ -294,13 +294,15 @@ class MainForm:
         #
         ####Analysis Display Window####
         self.frm_proc_disp = Frame(master=frm_proc_construction)
+        self.frm_proc_disp.columnconfigure(0, weight=0)
+        self.frm_proc_disp.columnconfigure(1, weight=1)
         self.frm_proc_disp.grid(row=0, column=1, padx=10, pady=2, sticky="news")
         self.frm_proc_disp_children = []    #Tkinter's frame children enumeration is a bit strange...
         #
         #
         frm_proc_construction.rowconfigure(0, weight=1)
-        frm_proc_construction.columnconfigure(0, weight=1)
-        frm_proc_construction.columnconfigure(1, weight=0)
+        frm_proc_construction.columnconfigure(0, weight=0)
+        frm_proc_construction.columnconfigure(1, weight=1)
         frm_proc_construction.grid(row=1, column=0, sticky='ew')
         #
         #Output Textbox and update button
@@ -698,34 +700,54 @@ class MainForm:
         cur_proc['ArgsOutput'][arg_index] = strVal
         self.lstbx_procs_current.modify_selected_index(self._post_procs_current_disp_text(cur_proc))
         return True
-    def _callback_tbx_post_procs_disp_final_output_callback(self, strVal):
-        self.cur_post_proc_output = strVal
-        self.lstbx_procs_current.modify_selected_index("Final Output: "+self.cur_post_proc_output)
-        return True
     def _callback_chkbx_post_procs_disp_enabled(self, cur_proc):
         cur_proc['Enabled'] = self.post_procs_enabled_chkbx_var.get()
         self.lstbx_procs_current.modify_selected_index(self._post_procs_current_disp_text(cur_proc))
+    def _callback_cmbx_post_procs_disp_callback(self, cur_proc, arg_index, event):
+        cur_proc['ArgsInput'][arg_index] = event.widget.get()
+        self.lstbx_procs_current.modify_selected_index(self._post_procs_current_disp_text(cur_proc))
+        return True
+    def _callback_cmbx_post_procs_disp_final_output_callback(self, event):
+        self.cur_post_proc_output = event.widget.get()
+        self.lstbx_procs_current.modify_selected_index("Final Output: "+self.cur_post_proc_output)
+        return True
+    def _get_post_procs_possible_inputs(self, cur_proc_ind):
+        if type(self.dep_vars) is list:
+            possible_inputs = self.dep_vars[:]
+        else:
+            possible_inputs = []
+        for prev_ind in range(cur_proc_ind):
+            prev_proc = self.cur_post_procs[prev_ind]
+            for cur_output in prev_proc['ArgsOutput']:
+                if not cur_output in possible_inputs:
+                    possible_inputs += [cur_output]
+        return possible_inputs
     def _post_procs_disp_activate(self):
-        cur_ind = self.lstbx_procs_current.get_sel_val(True)
-
-        tbx_width = 9
+        cur_proc_ind = self.lstbx_procs_current.get_sel_val(True)
 
         #Selected the Final Output entry
         row_off = 0
-        if cur_ind == len(self.cur_post_procs):
+        if cur_proc_ind == len(self.cur_post_procs):
             lbl_procs = Label(self.frm_proc_disp, text = "Output dataset")
             lbl_procs.grid(row=row_off, column=0)
             self.frm_proc_disp_children.append(lbl_procs)
             #
-            tbx_proc_output = ttk.Entry(self.frm_proc_disp, validate="key", width=tbx_width)  #validate can be validate="focusout" as well
-            tbx_proc_output.insert(END, self.cur_post_proc_output)
-            tbx_proc_output['validatecommand'] = (tbx_proc_output.register( partial(self._callback_tbx_post_procs_disp_final_output_callback) ), "%P")
-            tbx_proc_output.grid(row=row_off, column=1)
-            self.frm_proc_disp_children.append(tbx_proc_output)
+            cmbx_proc_output = ComboBoxEx(self.frm_proc_disp, "")
+            #Gather all previous output variables...
+            possible_inputs = self._get_post_procs_possible_inputs(cur_proc_ind)
+            #If the current setting for the input argument is not in the pool of possible inputs, then replace with a default first...
+            cmbx_proc_output.combobox.bind("<<ComboboxSelected>>", partial(self._callback_cmbx_post_procs_disp_final_output_callback) )
+            sel_ind = 0
+            if len(possible_inputs) > 0 and self.cur_post_proc_output in possible_inputs:
+                sel_ind = possible_inputs.index(self.cur_post_proc_output)
+            cmbx_proc_output.update_vals(possible_inputs, sel_ind)
+            #
+            cmbx_proc_output.Frame.grid(row=row_off, column=1, sticky="ew")
+            self.frm_proc_disp_children.append(cmbx_proc_output.combobox)
             return
 
         #Selected a process in the post-processing chain
-        cur_proc = self.cur_post_procs[cur_ind]
+        cur_proc = self.cur_post_procs[cur_proc_ind]
         
         row_off = 0
         chkbx_enabled = ttk.Checkbutton(self.frm_proc_disp, text = "Enabled", variable=self.post_procs_enabled_chkbx_var, command=partial(self._callback_chkbx_post_procs_disp_enabled, cur_proc))
@@ -738,21 +760,35 @@ class MainForm:
             lbl_procs = Label(self.frm_proc_disp, text = cur_arg[0])
             lbl_procs.grid(row=row_off, column=0)
             self.frm_proc_disp_children.append(lbl_procs)
-            #
-            # if cur_arg[1] == 'cursor':
-            #     cmbx_proc_output = ComboBoxEx(self.frm_proc_disp, "")
-            #     cmbx_proc_output.update_vals([x.Name for x in self.plot_main.AnalysisCursors if x.Type == cur_arg[2]])
-            #     cmbx_proc_output.Frame.grid(row=row_off, column=1)
-            #     self.frm_proc_disp_children.append(cmbx_proc_output.combobox)
-            # else:
-            tbx_proc_output = ttk.Entry(self.frm_proc_disp, validate="key", width=tbx_width)  #validate can be validate="focusout" as well
-            tbx_proc_output.insert(END, cur_proc['ArgsInput'][ind])
-            if cur_arg[1] == 'int':
-                tbx_proc_output['validatecommand'] = (tbx_proc_output.register( partial(self._callback_tbx_post_procs_disp_callback_Int, cur_proc, ind) ), "%P")
+            if cur_arg[1] == 'data':
+                cmbx_proc_output = ComboBoxEx(self.frm_proc_disp, "")
+                #Gather all previous output variables...
+                possible_inputs = self._get_post_procs_possible_inputs(cur_proc_ind)
+                #If the current setting for the input argument is not in the pool of possible inputs, then replace with a default first...
+                cmbx_proc_output.combobox.bind("<<ComboboxSelected>>", partial(self._callback_cmbx_post_procs_disp_callback, cur_proc, ind) )
+                sel_ind = 0
+                if len(possible_inputs) > 0 and cur_proc['ArgsInput'][ind] in possible_inputs:
+                    sel_ind = possible_inputs.index(cur_proc['ArgsInput'][ind])
+                cmbx_proc_output.update_vals(possible_inputs, sel_ind)
+                #
+                cmbx_proc_output.Frame.grid(row=row_off, column=1, sticky="ew")
+                self.frm_proc_disp_children.append(cmbx_proc_output.combobox)
             else:
-                tbx_proc_output['validatecommand'] = (tbx_proc_output.register( partial(self._callback_tbx_post_procs_disp_callback, cur_proc, ind) ), "%P")
-            tbx_proc_output.grid(row=row_off, column=1)
-            self.frm_proc_disp_children.append(tbx_proc_output)
+                #
+                # if cur_arg[1] == 'cursor':
+                #     cmbx_proc_output = ComboBoxEx(self.frm_proc_disp, "")
+                #     cmbx_proc_output.update_vals([x.Name for x in self.plot_main.AnalysisCursors if x.Type == cur_arg[2]])
+                #     cmbx_proc_output.Frame.grid(row=row_off, column=1)
+                #     self.frm_proc_disp_children.append(cmbx_proc_output.combobox)
+                # else:
+                tbx_proc_output = ttk.Entry(self.frm_proc_disp, validate="key")  #validate can be validate="focusout" as well
+                tbx_proc_output.insert(END, cur_proc['ArgsInput'][ind])
+                if cur_arg[1] == 'int':
+                    tbx_proc_output['validatecommand'] = (tbx_proc_output.register( partial(self._callback_tbx_post_procs_disp_callback_Int, cur_proc, ind) ), "%P")
+                else:
+                    tbx_proc_output['validatecommand'] = (tbx_proc_output.register( partial(self._callback_tbx_post_procs_disp_callback, cur_proc, ind) ), "%P")
+                tbx_proc_output.grid(row=row_off, column=1, sticky="ew")
+                self.frm_proc_disp_children.append(tbx_proc_output)
             #
             row_off += 1
         lbl_procs = Label(self.frm_proc_disp, text = "Outputs:")
@@ -764,11 +800,11 @@ class MainForm:
             lbl_procs.grid(row=row_off, column=0)
             self.frm_proc_disp_children.append(lbl_procs)
             #
-            tbx_proc_output = ttk.Entry(self.frm_proc_disp, validate="key", width=tbx_width)  #validate can be validate="focusout" as well
+            tbx_proc_output = ttk.Entry(self.frm_proc_disp, validate="key")  #validate can be validate="focusout" as well
             tbx_proc_output.insert(END, cur_proc['ArgsOutput'][ind])
             #These are data/variable names - thus, they require no validation as they are simply strings...
             tbx_proc_output['validatecommand'] = (tbx_proc_output.register( partial(self._callback_tbx_post_procs_disp_outputs_callback, cur_proc, ind) ), "%P")
-            tbx_proc_output.grid(row=row_off, column=1)
+            tbx_proc_output.grid(row=row_off, column=1, sticky="ew")
             self.frm_proc_disp_children.append(tbx_proc_output)
             #
             row_off += 1
@@ -1029,9 +1065,12 @@ class ComboBoxEx:
 
         self._vals = []
 
-    def update_vals(self, list_vals):
+    def update_vals(self, list_vals, set_index = -1):
         #Get current selection if applicable:
-        cur_sel = self.get_sel_val(True)
+        if set_index >= 0:
+            cur_sel = set_index
+        else:
+            cur_sel = self.get_sel_val(True)
 
         #Clear combobox
         self._vals = list(list_vals)
@@ -1040,12 +1079,12 @@ class ComboBoxEx:
         if len(list_vals) == 0:
             return
             
-        if cur_sel == None or not (cur_sel in self._vals):
+        if cur_sel is None or cur_sel < 0 or cur_sel >= len(self._vals):
             #Select first element by default...
             self.combobox.current(0)
         else:
             #Select the prescribed element from above... Note that cur_sel is still in the new list...
-            self.combobox.current(self._vals.index(cur_sel))
+            self.combobox.current(cur_sel)
         self.combobox.event_generate("<<ComboboxSelected>>")
 
     def enable(self):
