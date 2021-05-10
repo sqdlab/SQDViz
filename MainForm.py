@@ -1035,10 +1035,10 @@ class MainForm:
         self.lbl_procs_errors['text'] = ""
 
         #Update plots
-        if len(self.plot_main.curData) == 2:
-            self.plot_main.plot_data_1D(cur_data['x'], cur_data['data'])
-        else:
+        if 'y' in cur_data:
             self.plot_main.plot_data_2D(cur_data['x'], cur_data['y'], cur_data['data'])
+        else:
+            self.plot_main.plot_data_1D(cur_data['x'], cur_data['data'])
         return True
 
     def _event_quit():
@@ -1382,7 +1382,8 @@ class PlotFrame:
 
     def get_data_limits(self):
         if len(self.curData) > 1:
-            return (min(self.curData[0]), max(self.curData[0]), min(self.curData[1]), max(self.curData[1]))
+            #Note that the y-axes can be multi-dimensional if it has switched from 1D/2D plotting, but it's usually transient and doesn't matter for cursors (so np.max/np.min is fine...)
+            return (np.min(self.curData[0]), np.max(self.curData[0]), np.min(self.curData[1]), np.max(self.curData[1]))
         else:
             return (0,1,0,1)
 
