@@ -338,11 +338,8 @@ class MainForm:
         self.plot_main.add_cursor('red')
 
         #Setup analysis cursors
-        #Setup a dictionary which maps the cursor name to the cursor prefix...
-        self.possible_cursors = {
-            'X-Region' : 'X',
-            'Y-Region' : 'Y'
-        }
+        #Setup a dictionary which maps the cursor name to the cursor class...
+        self.possible_cursors = Analysis_Cursor.get_all_analysis_cursors()
         #Setup a dictionary which maps hatching patterns into unicode symbols to fill the table...
         #https://matplotlib.org/devdocs/gallery/shapes_and_collections/hatch_style_reference.html
         #https://www.key-shortcut.com/en/writing-systems/35-symbols/symbols-typography
@@ -520,7 +517,7 @@ class MainForm:
             if cur_curse.Type == cur_sel:
                 prev_names += [cur_curse.Name]
         #Choose new name
-        new_prefix = self.possible_cursors[cur_sel]
+        new_prefix = self.possible_cursors[cur_sel].Prefix
         m = 0
         while f'{new_prefix}{m}' in prev_names:
             m += 1
@@ -544,9 +541,8 @@ class MainForm:
             curse_col = 'white'
         else:
             curse_col = 'black'
-        if cur_sel == 'X-Region':
-            new_obj = AC_Xregion(new_name, curse_col)
-            self.plot_main.AnalysisCursors += [new_obj]
+        new_obj = self.possible_cursors[cur_sel](new_name, curse_col)
+        self.plot_main.AnalysisCursors += [new_obj]
         #
         new_obj.SymbolFill = new_sym
         new_obj.prepare_plot(self.plot_main, self.plot_main.ax)
@@ -978,9 +974,12 @@ class MainForm:
             self.lbl_procs_errors['text'] = f"Add functions to activate postprocessing."
             return False
 
+        #Drop the update if there are non-1D commands enabled...
         if len(indep_params) == 1:
-            self.lbl_procs_errors['text'] = f"Currently postprocessing in 1D plots is unsupported."
-            return False
+            for ind, cur_proc in enumerate(self.cur_post_procs):
+                if not cur_proc['ProcessObj'].supports_1D() and cur_proc['Enabled']:
+                    self.lbl_procs_errors['text'] = f"A non-1D plot process has been enabled in step #{ind}."
+                    return False
 
         #Data declarations
         data = {}

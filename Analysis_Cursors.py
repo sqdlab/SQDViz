@@ -1,3 +1,4 @@
+import sys, inspect
 from matplotlib.patches import Rectangle
 from matplotlib.backend_bases import (key_press_handler, MouseButton)
 
@@ -96,7 +97,17 @@ class Analysis_Cursor:
     def render_blit(self):
         raise NotImplementedError()
 
+    @staticmethod
+    def get_all_analysis_cursors():
+        is_class_member = lambda member: inspect.isclass(member) and member.__module__ == __name__
+        clsmembers = inspect.getmembers(sys.modules[__name__], is_class_member)
+        #Returns a dictionary of function name and a post-processor object to boot!
+        return { x[1].Type:x[1] for x in clsmembers if x[0].startswith('AC_') }
+
 class AC_Xregion(Analysis_Cursor):
+    Type = 'X-Region'
+    Prefix = 'X'
+    
     def __init__(self, name, colour='black'):
         super().__init__(name)
         self.x1 = 0
@@ -104,12 +115,6 @@ class AC_Xregion(Analysis_Cursor):
         self._fill = '/'
         self.colour = colour
 
-    @property
-    def Type(self):
-        return 'X-Region'
-    @property
-    def Prefix(self):
-        return 'X'
     @property
     def Summary(self):
         return f'[{self.x1,self.x2}]'
@@ -166,5 +171,75 @@ class AC_Xregion(Analysis_Cursor):
             self._is_drag = 'x1'
         elif self._pixel_distance(mouse_coord, (self.x2, mouse_coord[1]))[0] < self._drag_threshold:
             self._is_drag = 'x2'
+        else:
+            self._is_drag = 'None'
+
+class AC_Yregion(Analysis_Cursor):
+    Type = 'Y-Region'
+    Prefix = 'Y'
+    
+    def __init__(self, name, colour='black'):
+        super().__init__(name)
+        self.y1 = 0
+        self.y2 = 0.1
+        self._fill = '/'
+        self.colour = colour
+
+    @property
+    def Summary(self):
+        return f'[{self.y1,self.y2}]'
+    
+    @property
+    def SymbolFill(self):
+        return self._fill
+    @SymbolFill.setter
+    def SymbolFill(self, new_hatch):
+        self._fill = new_hatch
+
+    def prepare_plot(self, pltfrm, ax):
+        super().prepare_plot(pltfrm, ax)
+        self.rect = Rectangle((0.0, self.y1), 0.1, 0.1, angle=0.0, facecolor='none', edgecolor=self.colour, hatch=self._fill)
+        self.ax.add_patch(self.rect)
+
+    def reset_cursor(self):
+        lims = self.pltfrm.get_data_limits()
+        if self.y1 < lims[2]:
+            self.y1 = lims[2]
+        if self.y1 > lims[3]:
+            self.y1 = lims[3]
+        if self.y2 < lims[2]:
+            self.y2 = lims[2]
+        if self.y2 > lims[3]:
+            self.y2 = lims[3]
+
+        if abs(self.y1-self.y2)/(lims[3]-lims[2]) < 0.005:
+            if abs(lims[2] - self.y1) > abs(lims[3] - self.y1):
+                self.y2 = (lims[2] + self.y2) * 0.5
+            else:
+                self.y2 = (lims[3] + self.y2) * 0.5
+
+    def delete_from_plot(self):
+        if self.rect:
+            self.rect.remove()
+
+    def render_blit(self):
+        if self.ax:
+            lims = self.pltfrm.get_data_limits()
+            self.rect.set_xy((lims[0], self.y1))
+            self.rect.set_height(self.y2-self.y1)
+            self.rect.set_width(lims[1]-lims[0])
+            self.ax.draw_artist(self.rect)
+
+    def event_drag(self, coord):
+        if self._is_drag == 'y1':
+            self.y1 = coord[1]
+        elif self._is_drag == 'y2':
+            self.y2 = coord[1]
+        
+    def _event_mouse_pressed(self, mouse_coord):
+        if self._pixel_distance(mouse_coord, (mouse_coord[0], self.y1))[1] < self._drag_threshold:
+            self._is_drag = 'y1'
+        elif self._pixel_distance(mouse_coord, (mouse_coord[0], self.y2))[1] < self._drag_threshold:
+            self._is_drag = 'y2'
         else:
             self._is_drag = 'None'

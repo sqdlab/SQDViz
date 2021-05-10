@@ -1,4 +1,3 @@
-
 import sys, inspect
 import numpy as np
 import scipy
@@ -41,6 +40,9 @@ class PostProcessors:
 
     def get_default_output_args(self):
         return self._process_default_args(self.get_output_args(), True)
+
+    def supports_1D(self):
+        return True
 
     @staticmethod
     def get_all_post_processors():
@@ -116,12 +118,47 @@ class PP_SubRegX(PostProcessors):
         anal_cursorX = args[1]
         ind1 = (np.abs(ret_val['x'] - anal_cursorX.x1)).argmin()
         ind2 = (np.abs(ret_val['x'] - anal_cursorX.x2)).argmin()
+        if ind2 < ind1:
+            temp = ind2
+            ind1 = ind2
+            ind2 = temp
 
         if 'y' in args[0]:
             ret_val['y'] = args[0]['y']
-            means = args[0]['data'][:, ind1:(ind2+1)].mean(axis=1)
+            means = np.nanmean(args[0]['data'][:, ind1:(ind2+1)], axis=1)
             ret_val['data'] = (args[0]['data'].T - means).T
         else:
-            means = args[0]['data'][ind1:(ind2+1)].mean()
+            means = np.nanmean(args[0]['data'][ind1:(ind2+1)])
             ret_val['data'] = args[0]['data'] - means
+        return (ret_val, )
+
+class PP_SubRegY(PostProcessors):
+    def get_description(self):
+        return "Performs a line-by-line subtraction of every line by the average value over a selected x-interval on said line."
+
+    def get_input_args(self):
+        return [('Input dataset', 'data'), ('Y-interval', 'cursor', 'Y-Region')]
+
+    def get_output_args(self):
+        return [('Filtered data', 'data', 'filtData')]
+
+    def supports_1D(self):
+        return False
+
+    def __call__(self, *args):
+        ret_val = {}
+        ret_val['x'] = args[0]['x']
+        ret_val['y'] = args[0]['y']
+        
+        anal_cursorY = args[1]
+        ind1 = (np.abs(ret_val['y'] - anal_cursorY.y1)).argmin()
+        ind2 = (np.abs(ret_val['y'] - anal_cursorY.y2)).argmin()
+        if ind2 < ind1:
+            temp = ind2
+            ind1 = ind2
+            ind2 = temp
+
+        ret_val['y'] = args[0]['y']
+        means = np.nanmean(args[0]['data'][ind1:(ind2+1),:],axis=0)
+        ret_val['data'] = args[0]['data'] - means
         return (ret_val, )
