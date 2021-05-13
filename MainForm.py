@@ -296,16 +296,18 @@ class MainForm:
         self.frm_proc_disp = Frame(master=frm_proc_construction)
         self.frm_proc_disp.columnconfigure(0, weight=0)
         self.frm_proc_disp.columnconfigure(1, weight=1)
-        self.frm_proc_disp.grid(row=0, column=1, padx=10, pady=2, sticky="news")
+        self.frm_proc_disp.grid(row=0, column=1, sticky="news")
         self.frm_proc_disp_children = []    #Tkinter's frame children enumeration is a bit strange...
         #
         #
         frm_proc_construction.rowconfigure(0, weight=1)
-        frm_proc_construction.columnconfigure(0, weight=0)
+        frm_proc_construction.columnconfigure(0, weight=2)
         frm_proc_construction.columnconfigure(1, weight=1)
         frm_proc_construction.grid(row=1, column=0, sticky='ew')
+        #### ####
         #
-        #Output Textbox and update button
+        #
+        #Space for Error Message
         frm_proc_output_tbx = Frame(master=lblfrm_analysis)
         self.lbl_procs_errors = Label(frm_proc_output_tbx, text = "")
         self.lbl_procs_errors.grid(row=0, column=0)
@@ -728,7 +730,7 @@ class MainForm:
             lbl_procs.grid(row=row_off, column=0)
             self.frm_proc_disp_children.append(lbl_procs)
             #
-            cmbx_proc_output = ComboBoxEx(self.frm_proc_disp, "")
+            cmbx_proc_output = ComboBoxEx(self.frm_proc_disp, "", width=6)
             #Gather all previous output variables...
             possible_inputs = self._get_post_procs_possible_inputs(cur_proc_ind)
             #If the current setting for the input argument is not in the pool of possible inputs, then replace with a default first...
@@ -738,7 +740,7 @@ class MainForm:
                 sel_ind = possible_inputs.index(self.cur_post_proc_output)
             cmbx_proc_output.update_vals(possible_inputs, sel_ind)
             #
-            cmbx_proc_output.Frame.grid(row=row_off, column=1, sticky="ew")
+            cmbx_proc_output.Frame.grid(row=row_off, column=1, sticky='we')
             self.frm_proc_disp_children.append(cmbx_proc_output.combobox)
             return
 
@@ -757,7 +759,7 @@ class MainForm:
             lbl_procs.grid(row=row_off, column=0)
             self.frm_proc_disp_children.append(lbl_procs)
             if cur_arg[1] == 'data':
-                cmbx_proc_output = ComboBoxEx(self.frm_proc_disp, "")
+                cmbx_proc_output = ComboBoxEx(self.frm_proc_disp, "", width=6)
                 #Gather all previous output variables...
                 possible_inputs = self._get_post_procs_possible_inputs(cur_proc_ind)
                 #If the current setting for the input argument is not in the pool of possible inputs, then replace with a default first...
@@ -767,7 +769,7 @@ class MainForm:
                     sel_ind = possible_inputs.index(cur_proc['ArgsInput'][ind])
                 cmbx_proc_output.update_vals(possible_inputs, sel_ind)
                 #
-                cmbx_proc_output.Frame.grid(row=row_off, column=1, sticky="ew")
+                cmbx_proc_output.Frame.grid(row=row_off, column=1, sticky='we')
                 self.frm_proc_disp_children.append(cmbx_proc_output.combobox)
             else:
                 #
@@ -777,13 +779,13 @@ class MainForm:
                 #     cmbx_proc_output.Frame.grid(row=row_off, column=1)
                 #     self.frm_proc_disp_children.append(cmbx_proc_output.combobox)
                 # else:
-                tbx_proc_output = ttk.Entry(self.frm_proc_disp, validate="key")  #validate can be validate="focusout" as well
+                tbx_proc_output = ttk.Entry(self.frm_proc_disp, validate="key", width=8)  #validate can be validate="focusout" as well
                 tbx_proc_output.insert(END, cur_proc['ArgsInput'][ind])
                 if cur_arg[1] == 'int':
                     tbx_proc_output['validatecommand'] = (tbx_proc_output.register( partial(self._callback_tbx_post_procs_disp_callback_Int, cur_proc, ind) ), "%P")
                 else:
                     tbx_proc_output['validatecommand'] = (tbx_proc_output.register( partial(self._callback_tbx_post_procs_disp_callback, cur_proc, ind) ), "%P")
-                tbx_proc_output.grid(row=row_off, column=1, sticky="ew")
+                tbx_proc_output.grid(row=row_off, column=1, sticky='we')
                 self.frm_proc_disp_children.append(tbx_proc_output)
             #
             row_off += 1
@@ -796,11 +798,11 @@ class MainForm:
             lbl_procs.grid(row=row_off, column=0)
             self.frm_proc_disp_children.append(lbl_procs)
             #
-            tbx_proc_output = ttk.Entry(self.frm_proc_disp, validate="key")  #validate can be validate="focusout" as well
+            tbx_proc_output = ttk.Entry(self.frm_proc_disp, validate="key", width=8)  #validate can be validate="focusout" as well
             tbx_proc_output.insert(END, cur_proc['ArgsOutput'][ind])
             #These are data/variable names - thus, they require no validation as they are simply strings...
             tbx_proc_output['validatecommand'] = (tbx_proc_output.register( partial(self._callback_tbx_post_procs_disp_outputs_callback, cur_proc, ind) ), "%P")
-            tbx_proc_output.grid(row=row_off, column=1, sticky="ew")
+            tbx_proc_output.grid(row=row_off, column=1, sticky='we')
             self.frm_proc_disp_children.append(tbx_proc_output)
             #
             row_off += 1
@@ -858,6 +860,8 @@ class MainForm:
         self.indep_vars = None
         self.dep_vars = None
         #
+        self._prev_x_axis = self.cmbx_axis_x.get_sel_val()
+        self._prev_y_axis = self.cmbx_axis_y.get_sel_val()
         self.cmbx_axis_x.update_vals([])
         self.cmbx_axis_x.disable()
         self.cmbx_axis_y.update_vals([])
@@ -871,6 +875,7 @@ class MainForm:
         self.lstbx_slice_vars.disable()
         self.lbl_slice_vars_val['text'] = "Min|Max"
         #
+        self._prev_plot_dim = self.plot_dim_type.get()
         self.plot_dim_type.set(1)
         self.rdbtn_plot_sel_1D.configure(state='disabled')
         self.rdbtn_plot_sel_2D.configure(state='disabled')
@@ -893,7 +898,7 @@ class MainForm:
         self.lstbx_cursors.enable()
         self.lstbx_slice_vars.enable()
         #
-        self.plot_dim_type.set(1)
+        self.plot_dim_type.set(self._prev_plot_dim)
         self.rdbtn_plot_sel_1D.configure(state='normal')
         self.rdbtn_plot_sel_2D.configure(state='normal')
         #
@@ -901,9 +906,16 @@ class MainForm:
         self.btn_cursor_del.configure(state='normal')
         self.btn_analy_cursor_add.configure(state='normal')
         self.btn_analy_cursor_del.configure(state='normal')
+        #
+        #Select previous axes if available...
+        if self._prev_x_axis != None:
+            self.cmbx_axis_x.set_sel_val(self._prev_x_axis)
+            self._prev_x_axis = None
+        if self._prev_y_axis != None:
+            self.cmbx_axis_y.set_sel_val(self._prev_y_axis)
+            self._prev_y_axis = None
 
     def _open_file_hdf5(self):
-        self.reset_ui()
         # file type
         filetypes = (
             ('SQDToolz HDF5', '*.h5'),
@@ -914,6 +926,7 @@ class MainForm:
         filename = fd.askopenfile(filetypes=filetypes)
         # read the text file and show its content on the Text
         if filename:
+            self.reset_ui()
             self._open_sqdtoolz_hdf5(filename.name)
     def _open_sqdtoolz_hdf5(self, file_path):
         #Setup data extraction
@@ -922,7 +935,6 @@ class MainForm:
         self.init_ui()
 
     def _open_file_hdf5folders(self):
-        self.reset_ui()
         # file type
         filetypes = (
             ('SQDToolz HDF5', '*.h5'),
@@ -933,6 +945,7 @@ class MainForm:
         filename = fd.askopenfile(filetypes=filetypes)
         # read the text file and show its content on the Text
         if filename:
+            self.reset_ui()
             self._open_sqdtoolz_hdf5folders(filename.name)
     def _open_sqdtoolz_hdf5folders(self, file_path):
         #Setup data extraction
@@ -941,7 +954,6 @@ class MainForm:
         self.init_ui()
 
     def _open_file_dat(self):
-        self.reset_ui()
         # file type
         filetypes = (
             ('UQTools DAT', '*.dat'),
@@ -952,6 +964,7 @@ class MainForm:
         filename = fd.askopenfile(filetypes=filetypes)
         # read the text file and show its content on the Text
         if filename:
+            self.reset_ui()
             self._open_uqtools_dat(filename.name)
     def _open_uqtools_dat(self, file_path):
         #Setup data extraction
@@ -1035,7 +1048,7 @@ class MainForm:
         self.lbl_procs_errors['text'] = ""
 
         #Update plots
-        if len(self.plot_main.curData) == 2:
+        if not 'y' in cur_data:
             self.plot_main.plot_data_1D(cur_data['x'], cur_data['data'])
         else:
             self.plot_main.plot_data_2D(cur_data['x'], cur_data['y'], cur_data['data'])
@@ -1100,6 +1113,10 @@ class ComboBoxEx:
             return self.combobox.current()
         else:
             return self._vals[self.combobox.current()]
+
+    def set_sel_val(self, val):
+        if val in self._vals:
+            self.combobox.current(self._vals.index(val))
 
 class ListBoxScrollBar:
     def __init__(self, parent_ui_element):
@@ -1393,6 +1410,8 @@ class PlotFrame:
             cur_curse.reset_cursor()
 
     def update_cursors(self, reset_plots=True):
+        for cur_curse in self.Cursors:
+            cur_curse.update()
         #Check if a cursor has moved...
         if reset_plots:
             #If lstbx_cursor_info is None, then it's an internal call to redraw the cursors (e.g. new plot, zoom or home-button has been hit)
@@ -1497,9 +1516,9 @@ class PlotCursorDrag(object):
         #Reset coordinate if cursor falls outside the possibly new axis
         if self.cur_coord[0] < xlimts[0] or self.cur_coord[0] > xlimts[1] or self.cur_coord[1] < ylimts[0] or self.cur_coord[1] > ylimts[1]:
             self.cur_coord = (0.5*(xlimts[0]+xlimts[1]), 0.5*(ylimts[0]+ylimts[1]))
-        self.lx.set_xdata(self.cur_coord[0])
-        self.ly.set_ydata(self.cur_coord[1])
-        self.has_changed = True
+            self.lx.set_xdata(self.cur_coord[0])
+            self.ly.set_ydata(self.cur_coord[1])
+            self.has_changed = True
 
     def display_cursor(self, event):
         if event.inaxes and event.button == MouseButton.LEFT:
