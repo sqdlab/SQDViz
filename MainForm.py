@@ -1328,7 +1328,7 @@ class PlotFrame:
         self.bg = self.ax.figure.canvas.copy_from_bbox(self.ax.bbox)
         self._cur_2D = False
         self._reset_cursors()
-        self.update_cursors(True)
+        self.update_cursors(False)
 
     def _plot_1D(self, cur_ax, dataX, dataY, clearAxis=True, colour = None):
         if clearAxis:
