@@ -1316,17 +1316,38 @@ class PlotFrame:
         height *= self.fig.dpi
         return (width, height)
 
-    def plot_data_1D(self, dataX, dataY, clearAxis=True, colour = None):
-        self.curData = (dataX, dataY)
-        if clearAxis:
-            self.ax.clear()
-        if colour != None:
-            self.ax.plot(self.curData[0], self.curData[1], color = colour)
+    def plot_data_1D(self, dataX, dataY):
+        if len(self.curData) != 2:
+            replot = True
         else:
-            self.ax.plot(self.curData[0], self.curData[1])
+            extent = [x for x in self.ax.axis()]
+            xlimts = self.ax.get_xlim()
+            xpct = (extent[1] - extent[0])/(np.max(self.curData[0]) - np.min(self.curData[0]))
+            ylimts = self.ax.get_ylim()
+            ypct = (extent[3] - extent[2])/(np.max(self.curData[1]) - np.min(self.curData[1]))
+            replot =  xpct > 0.99 and ypct > 0.99
+        
+        self.curData = (dataX, dataY)
+        self._cur_2D = False
+
+        if not replot:
+            extent = [x for x in self.ax.axis()]
+            a = min(self.curData[0])
+            if extent[0] < a: extent[0] = a
+            a = max(self.curData[0])
+            if extent[1] > a: extent[1] = a
+            a = min(self.curData[1])
+            if extent[2] < a: extent[2] = a
+            a = max(self.curData[1])
+            if extent[3] > a: extent[3] = a
+            
+        self.ax.clear()
+        self.ax.plot(self.curData[0], self.curData[1])
+
+        if not replot:
+            self.ax.axis(extent)
         self.fig.canvas.draw()
         self.bg = self.ax.figure.canvas.copy_from_bbox(self.ax.bbox)
-        self._cur_2D = False
         self._reset_cursors()
         self.update_cursors(False)
 
@@ -1400,7 +1421,11 @@ class PlotFrame:
     def get_data_limits(self):
         if len(self.curData) > 1:
             #Note that the y-axes can be multi-dimensional if it has switched from 1D/2D plotting, but it's usually transient and doesn't matter for cursors (so np.max/np.min is fine...)
-            return (np.min(self.curData[0]), np.max(self.curData[0]), np.min(self.curData[1]), np.max(self.curData[1]))
+            ret_val = [np.min(self.curData[0]), np.max(self.curData[0]), np.nanmin(self.curData[1]), np.nanmax(self.curData[1])]
+            if np.isnan(ret_val[2]) or np.isnan(ret_val[3]):    #Should be NaN on both cases, but just use 'or' for now...
+                ret_val[2] = 0
+                ret_val[3] = 0
+            return ret_val
         else:
             return (0,1,0,1)
 
