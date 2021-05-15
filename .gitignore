@@ -3,3 +3,5 @@
 *.pyc
 *.cpy
 *.vscode/
+azure-dark.tcl
+azure-dark/

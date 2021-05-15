@@ -206,7 +206,7 @@ class MainForm:
         #VARIABLE SLICER#
         lblfrm_slice_vars = LabelFrame(master=frm_plotparams_varslicer, text="Parameter slice", padx=10, pady=10)
         self.lstbx_slice_vars = ListBoxScrollBar(lblfrm_slice_vars)
-        self.lstbx_slice_vars.frame.grid(row=0, column=0, columnspan=3, padx=10, pady=2, sticky="news")
+        self.lstbx_slice_vars.frame.grid(row=0, column=0, columnspan=3, sticky="news")
         #
         self.lbl_slice_vars_val = tk.Label(lblfrm_slice_vars, text="Min|Max:")
         self.lbl_slice_vars_val.grid(row=1, column=0, columnspan=3)
@@ -266,7 +266,7 @@ class MainForm:
         frm_proc_sel.columnconfigure(0, weight=0)
         frm_proc_sel.columnconfigure(1, weight=1)
         #
-        frm_proc_sel.grid(row=0, column=0, sticky='ew')
+        frm_proc_sel.grid(row=0, column=0, sticky='news')
         #####################
         #
         #####################
@@ -303,7 +303,7 @@ class MainForm:
         frm_proc_construction.rowconfigure(0, weight=1)
         frm_proc_construction.columnconfigure(0, weight=2)
         frm_proc_construction.columnconfigure(1, weight=1)
-        frm_proc_construction.grid(row=1, column=0, sticky='ew')
+        frm_proc_construction.grid(row=1, column=0, sticky='news')
         #### ####
         #
         #
