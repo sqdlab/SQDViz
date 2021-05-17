@@ -1343,6 +1343,7 @@ class PlotFrame:
             
         self.ax.clear()
         self.ax.plot(self.curData[0], self.curData[1])
+        self.ax.set_xlim([np.min(self.curData[0]), np.max(self.curData[0])])
 
         if not replot:
             self.ax.axis(extent)
