@@ -132,6 +132,37 @@ class PP_SubRegX(PostProcessors):
             ret_val['data'] = args[0]['data'] - means
         return (ret_val, )
 
+class PP_DivRegX(PostProcessors):
+    def get_description(self):
+        return "Performs a line-by-line division of every line by the average value over a selected x-interval on said line."
+
+    def get_input_args(self):
+        return [('Input dataset', 'data'), ('X-interval', 'cursor', 'X-Region')]
+
+    def get_output_args(self):
+        return [('Filtered data', 'data', 'filtData')]
+
+    def __call__(self, *args):
+        ret_val = {}
+        ret_val['x'] = args[0]['x']
+        
+        anal_cursorX = args[1]
+        ind1 = (np.abs(ret_val['x'] - anal_cursorX.x1)).argmin()
+        ind2 = (np.abs(ret_val['x'] - anal_cursorX.x2)).argmin()
+        if ind2 < ind1:
+            temp = ind2
+            ind1 = ind2
+            ind2 = temp
+
+        if 'y' in args[0]:
+            ret_val['y'] = args[0]['y']
+            means = np.nanmean(args[0]['data'][:, ind1:(ind2+1)], axis=1)
+            ret_val['data'] = (args[0]['data'].T / means).T
+        else:
+            means = np.nanmean(args[0]['data'][ind1:(ind2+1)])
+            ret_val['data'] = args[0]['data'] / means
+        return (ret_val, )
+
 class PP_SubRegY(PostProcessors):
     def get_description(self):
         return "Performs a line-by-line subtraction of every line by the average value over a selected x-interval on said line."
@@ -162,3 +193,28 @@ class PP_SubRegY(PostProcessors):
         means = np.nanmean(args[0]['data'][ind1:(ind2+1),:],axis=0)
         ret_val['data'] = args[0]['data'] - means
         return (ret_val, )
+
+class PP_Difference(PostProcessors):
+    def get_description(self):
+        return "Returns the difference of the two data"
+
+    def get_input_args(self):
+        return [('input1', 'data'), ('input2', 'data')]
+
+    def get_output_args(self):
+        return [('Difference', 'data', 'diff')]
+
+    def __call__(self, *args):
+        assert args[0]['data'].shape == args[1]['data'].shape, "Data has inconsistent shapes"
+        
+        ret_val_diff = {}
+        assert np.array_equal(args[0]['x'], args[1]['x']), "The x-values are not concurrent for I and Q."
+        ret_val_diff['x'] = args[0]['x']
+        
+        if len(args[0]['data'].shape) == 2:
+            assert np.array_equal(args[0]['y'], args[1]['y']), "The y-values are not concurrent for I and Q."
+            ret_val_diff['y'] = args[0]['y']
+        
+        ret_val_diff['data'] = args[0]['data'] - args[1]['data']
+
+        return (ret_val_diff, )
