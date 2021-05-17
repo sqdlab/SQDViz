@@ -62,7 +62,7 @@ class PP_IQ2AmpPhase(PostProcessors):
         return [('Amplitude', 'data', 'amp'), ('Phase', 'data', 'phs')]
 
     def __call__(self, *args):
-        assert args[0]['data'].shape == args[1]['data'].shape, "Data has inconsistent shapes"
+        assert args[0]['data'].shape == args[1]['data'].shape, "Datasets have inconsistent shapes"
         
         ret_val_amp = {}
         ret_val_phs = {}
@@ -103,7 +103,7 @@ class PP_MedianFilterX(PostProcessors):
 
 class PP_SubRegX(PostProcessors):
     def get_description(self):
-        return "Performs a line-by-line subtraction of every line by the average value over a selected x-interval on said line."
+        return "Performs a line-by-line subtraction of every horizontal line by the average value over a selected x-interval on said line."
 
     def get_input_args(self):
         return [('Input dataset', 'data'), ('X-interval', 'cursor', 'X-Region')]
@@ -119,7 +119,7 @@ class PP_SubRegX(PostProcessors):
         ind1 = (np.abs(ret_val['x'] - anal_cursorX.x1)).argmin()
         ind2 = (np.abs(ret_val['x'] - anal_cursorX.x2)).argmin()
         if ind2 < ind1:
-            temp = ind2
+            temp = ind1
             ind1 = ind2
             ind2 = temp
 
@@ -132,40 +132,9 @@ class PP_SubRegX(PostProcessors):
             ret_val['data'] = args[0]['data'] - means
         return (ret_val, )
 
-class PP_DivRegX(PostProcessors):
-    def get_description(self):
-        return "Performs a line-by-line division of every line by the average value over a selected x-interval on said line."
-
-    def get_input_args(self):
-        return [('Input dataset', 'data'), ('X-interval', 'cursor', 'X-Region')]
-
-    def get_output_args(self):
-        return [('Filtered data', 'data', 'filtData')]
-
-    def __call__(self, *args):
-        ret_val = {}
-        ret_val['x'] = args[0]['x']
-        
-        anal_cursorX = args[1]
-        ind1 = (np.abs(ret_val['x'] - anal_cursorX.x1)).argmin()
-        ind2 = (np.abs(ret_val['x'] - anal_cursorX.x2)).argmin()
-        if ind2 < ind1:
-            temp = ind2
-            ind1 = ind2
-            ind2 = temp
-
-        if 'y' in args[0]:
-            ret_val['y'] = args[0]['y']
-            means = np.nanmean(args[0]['data'][:, ind1:(ind2+1)], axis=1)
-            ret_val['data'] = (args[0]['data'].T / means).T
-        else:
-            means = np.nanmean(args[0]['data'][ind1:(ind2+1)])
-            ret_val['data'] = args[0]['data'] / means
-        return (ret_val, )
-
 class PP_SubRegY(PostProcessors):
     def get_description(self):
-        return "Performs a line-by-line subtraction of every line by the average value over a selected x-interval on said line."
+        return "Performs a line-by-line subtraction of every vertical line by the average value over a selected y-interval on said line."
 
     def get_input_args(self):
         return [('Input dataset', 'data'), ('Y-interval', 'cursor', 'Y-Region')]
@@ -185,7 +154,7 @@ class PP_SubRegY(PostProcessors):
         ind1 = (np.abs(ret_val['y'] - anal_cursorY.y1)).argmin()
         ind2 = (np.abs(ret_val['y'] - anal_cursorY.y2)).argmin()
         if ind2 < ind1:
-            temp = ind2
+            temp = ind1
             ind1 = ind2
             ind2 = temp
 
@@ -194,27 +163,137 @@ class PP_SubRegY(PostProcessors):
         ret_val['data'] = args[0]['data'] - means
         return (ret_val, )
 
-class PP_Difference(PostProcessors):
+class PP_DivRegX(PostProcessors):
     def get_description(self):
-        return "Returns the difference of the two data"
+        return "Performs a line-by-line division of every horizontal line by the average value over a selected x-interval on said line."
 
     def get_input_args(self):
-        return [('input1', 'data'), ('input2', 'data')]
+        return [('Input dataset', 'data'), ('X-interval', 'cursor', 'X-Region')]
+
+    def get_output_args(self):
+        return [('Filtered data', 'data', 'filtData')]
+
+    def __call__(self, *args):
+        ret_val = {}
+        ret_val['x'] = args[0]['x']
+        
+        anal_cursorX = args[1]
+        ind1 = (np.abs(ret_val['x'] - anal_cursorX.x1)).argmin()
+        ind2 = (np.abs(ret_val['x'] - anal_cursorX.x2)).argmin()
+        if ind2 < ind1:
+            temp = ind1
+            ind1 = ind2
+            ind2 = temp
+
+        if 'y' in args[0]:
+            ret_val['y'] = args[0]['y']
+            means = np.nanmean(args[0]['data'][:, ind1:(ind2+1)], axis=1)
+            ret_val['data'] = (args[0]['data'].T / means).T
+        else:
+            means = np.nanmean(args[0]['data'][ind1:(ind2+1)])
+            ret_val['data'] = args[0]['data'] / means
+        return (ret_val, )
+
+class PP_DivRegY(PostProcessors):
+    def get_description(self):
+        return "Performs a line-by-line division of every vertical line by the average value over a selected y-interval on said line."
+
+    def get_input_args(self):
+        return [('Input dataset', 'data'), ('Y-interval', 'cursor', 'Y-Region')]
+
+    def get_output_args(self):
+        return [('Filtered data', 'data', 'filtData')]
+
+    def supports_1D(self):
+        return False
+
+    def __call__(self, *args):
+        ret_val = {}
+        ret_val['x'] = args[0]['x']
+        ret_val['y'] = args[0]['y']
+        
+        anal_cursorY = args[1]
+        ind1 = (np.abs(ret_val['y'] - anal_cursorY.y1)).argmin()
+        ind2 = (np.abs(ret_val['y'] - anal_cursorY.y2)).argmin()
+        if ind2 < ind1:
+            temp = ind1
+            ind1 = ind2
+            ind2 = temp
+
+        ret_val['y'] = args[0]['y']
+        means = np.nanmean(args[0]['data'][ind1:(ind2+1),:],axis=0)
+        ret_val['data'] = args[0]['data'] / means
+        return (ret_val, )
+
+class PP_Difference(PostProcessors):
+    def get_description(self):
+        return "Returns the difference between two datasets (input1 - input2)."
+
+    def get_input_args(self):
+        return [('Input 1', 'data'), ('Input 2', 'data')]
 
     def get_output_args(self):
         return [('Difference', 'data', 'diff')]
 
     def __call__(self, *args):
-        assert args[0]['data'].shape == args[1]['data'].shape, "Data has inconsistent shapes"
+        assert args[0]['data'].shape == args[1]['data'].shape, "Datasets have inconsistent shapes"
         
         ret_val_diff = {}
-        assert np.array_equal(args[0]['x'], args[1]['x']), "The x-values are not concurrent for I and Q."
+        assert np.array_equal(args[0]['x'], args[1]['x']), "The x-values are not concurrent across both datasets."
         ret_val_diff['x'] = args[0]['x']
         
         if len(args[0]['data'].shape) == 2:
-            assert np.array_equal(args[0]['y'], args[1]['y']), "The y-values are not concurrent for I and Q."
+            assert np.array_equal(args[0]['y'], args[1]['y']), "The y-values are not concurrent across both datasets."
             ret_val_diff['y'] = args[0]['y']
         
         ret_val_diff['data'] = args[0]['data'] - args[1]['data']
 
         return (ret_val_diff, )
+
+class PP_IgnoreReg(PostProcessors):
+    def get_description(self):
+        return "Ignores a selected region defined via an x or y interval. Y-intervals are ignored in 1D plots."
+
+    def get_input_args(self):
+        return [('Input dataset', 'data'), ('X/Y-interval', 'cursor', ['X-Region', 'Y-Region'])]
+
+    def get_output_args(self):
+        return [('Filtered data', 'data', 'filtData')]
+
+    def __call__(self, *args):
+        ret_val = {}
+        ret_val['x'] = args[0]['x']
+        ret_val['data'] = args[0]['data']
+        
+        if args[1].Type == 'X-Region':
+            anal_cursorX = args[1]
+            ind1 = (np.abs(ret_val['x'] - anal_cursorX.x1)).argmin()
+            ind2 = (np.abs(ret_val['x'] - anal_cursorX.x2)).argmin()
+            if ind2 < ind1:
+                temp = ind1
+                ind1 = ind2
+                ind2 = temp
+
+            if 'y' in args[0]:
+                ret_val['y'] = args[0]['y']
+                ret_val['data'][:, ind1:(ind2+1)] = np.nan
+            else:
+                ret_val['data'][ind1:(ind2+1)] = np.nan
+            return (ret_val, )
+        elif args[1].Type == 'Y-Region':
+            if 'y' in args[0]:
+                ret_val['y'] = args[0]['y']
+                anal_cursorY = args[1]
+                ind1 = (np.abs(ret_val['y'] - anal_cursorY.y1)).argmin()
+                ind2 = (np.abs(ret_val['y'] - anal_cursorY.y2)).argmin()
+                if ind2 < ind1:
+                    temp = ind1
+                    ind1 = ind2
+                    ind2 = temp
+                ret_val['y'] = args[0]['y']
+                ret_val['data'] = args[0]['data']
+                ret_val['data'][ind1:(ind2+1),:] = np.nan
+            return (ret_val, )
+        
+
+

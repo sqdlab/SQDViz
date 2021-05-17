@@ -1023,9 +1023,14 @@ class MainForm:
                     the_cursor = None
                     #Find cursor
                     for cur_curse in self.plot_main.AnalysisCursors:
-                        if cur_curse.Name == cur_args[ind] and cur_curse.Type == cur_arg[2]:
-                            the_cursor = cur_curse
-                            break
+                        if cur_curse.Name == cur_args[ind]:
+                            if type(cur_arg[2]) == tuple or type(cur_arg[2]) == list:
+                                if cur_curse.Type in cur_arg[2]:
+                                    the_cursor = cur_curse
+                                    break
+                            elif cur_curse.Type == cur_arg[2]:
+                                the_cursor = cur_curse
+                                break
                     if the_cursor != None:
                         cur_args[ind] = the_cursor
                     else:
