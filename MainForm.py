@@ -76,7 +76,7 @@ class MainForm:
         ###################
         #MAIN PLOT DISPLAY#
         ###################
-        self.plot_main = PlotFrame(self.pw_lhs, self._event_btn_plot_main_update, dark_mode)
+        self.plot_main = PlotFrame(self.pw_lhs, self._event_btn_plot_main_update, self._event_btn_plot_main_get_attrs, dark_mode)
         self.pw_lhs.add(self.plot_main.Frame,stretch='always')
         ###################
         #
@@ -385,6 +385,7 @@ class MainForm:
         self._event_lstbx_proc_current_changed(None)
 
         #Initialise UI to then adjust the sashes to make the UI just right
+        self.file_path = ""
         self.root.update()
         #Take about 350 pixels for the RHS toolbars...
         cur_width = self.pw_main_LR_UI.winfo_width()
@@ -393,7 +394,7 @@ class MainForm:
         cur_height = self.pw_lhs.winfo_height()
         self.pw_lhs.sash_place(0, 1, int(cur_height-171))
         #Initial update time-stamp
-        self.last_update_time = time.time()        
+        self.last_update_time = time.time()
 
     def main_loop(self):
         import time
@@ -502,6 +503,11 @@ class MainForm:
 
     def _event_btn_plot_main_update(self):
         self.man_update_plot = True
+
+    def _event_btn_plot_main_get_attrs(self):
+        clip_str = f"File: {self.file_path}\n"
+        self.root.clipboard_clear()
+        self.root.clipboard_append(clip_str)
 
     def _update_analy_cursor_item(self, analy_cursor):
         if analy_cursor.Visible:
@@ -929,6 +935,7 @@ class MainForm:
             self.reset_ui()
             self._open_sqdtoolz_hdf5(filename.name)
     def _open_sqdtoolz_hdf5(self, file_path):
+        self.file_path = file_path
         #Setup data extraction
         self.data_thread_pool = ThreadPool(processes=1)
         self.data_extractor = DataExtractorH5single(file_path, self.data_thread_pool)
@@ -948,6 +955,7 @@ class MainForm:
             self.reset_ui()
             self._open_sqdtoolz_hdf5folders(filename.name)
     def _open_sqdtoolz_hdf5folders(self, file_path):
+        self.file_path = file_path
         #Setup data extraction
         self.data_thread_pool = ThreadPool(processes=1)
         self.data_extractor = DataExtractorH5multiple(file_path, self.data_thread_pool)
@@ -967,6 +975,7 @@ class MainForm:
             self.reset_ui()
             self._open_uqtools_dat(filename.name)
     def _open_uqtools_dat(self, file_path):
+        self.file_path = file_path
         #Setup data extraction
         self.data_thread_pool = ThreadPool(processes=1)
         self.data_extractor = DataExtractorUQtoolsDAT(file_path, self.data_thread_pool)
@@ -1251,7 +1260,7 @@ class HistEqNormalize(mplcols.Normalize):
         return value.argsort().argsort()/(value.size-1)
 
 class PlotFrame:
-    def __init__(self, root_ui, update_func = None, dark_mode = False):
+    def __init__(self, root_ui, update_func = None, get_attr_func = None, dark_mode = False):
         if dark_mode:
             mplstyle.use('dark_background')
         self.fig = Figure(figsize=(1,1))
@@ -1276,6 +1285,9 @@ class PlotFrame:
             self.icon_update = PhotoImage(file = "Icons/UpdatePlots.png")    #Need to store reference for otherwise garbage collection destroys it...
             btn_update = Button(master=self.ToolBar, image=self.icon_update, command=update_func)
             btn_update.pack(side="left")
+        self.icon_get_attrs = PhotoImage(file = "Icons/GetAttr.png")    #Need to store reference for otherwise garbage collection destroys it...
+        btn_getattrs = Button(master=self.ToolBar, image=self.icon_get_attrs, command=get_attr_func)
+        btn_getattrs.pack(side="left")
 
         self.ToolBar.update()
         self.ToolBar.grid_configure(row=0,column=0,sticky='nsew')
