@@ -5,6 +5,8 @@ import tkinter.font as tkFont
 from tkinter.scrolledtext import ScrolledText
 from tkinter import filedialog as fd
 
+import matplotlib
+import matplotlib.pyplot
 from matplotlib.backends.backend_tkagg import (FigureCanvasTkAgg, NavigationToolbar2Tk)
 # Implement the default Matplotlib key bindings.
 from matplotlib.backend_bases import (key_press_handler, MouseButton)
@@ -18,6 +20,8 @@ from matplotlib import style as mplstyle
 import numpy as np
 from multiprocessing.pool import ThreadPool
 
+from numpy.lib.arraysetops import isin
+
 from DataExtractorH5single import*
 from DataExtractorH5multiple import*
 from DataExtractorUQtoolsDAT import*
@@ -26,6 +30,9 @@ from PostProcessors import*
 from Analysis_Cursors import*
 
 from functools import partial
+
+import json
+import os
 
 class MainForm:
     def __init__(self, dark_mode = False):
@@ -332,6 +339,12 @@ class MainForm:
         self.colour_maps = []
         for cur_col_map in def_col_maps:
             self.colour_maps.append(ColourMap.fromDefault(cur_col_map[0], cur_col_map[1]))
+        file_path = 'ColourMaps/'
+        json_files = [pos_json for pos_json in os.listdir(file_path) if pos_json.endswith('.json')]
+        for cur_json_file in json_files:
+            with open(file_path + cur_json_file) as json_file:
+                data = json.load(json_file)
+                self.colour_maps.append(ColourMap.fromCustom(data, cur_json_file[:-5]))
         #Commit colour maps to ComboBox
         self.cmbx_ckey.update_vals([x.Name for x in self.colour_maps])
         self.plot_main.set_colour_key(self.colour_maps[self.cmbx_ckey.get_sel_val(True)], False)
@@ -1221,9 +1234,9 @@ class ColourMap:
         return retObj
     
     @classmethod
-    def fromCustom(cls, cdict, display_name, num_interpol=256):
+    def fromCustom(cls, cm_data, display_name):
         retObj = cls()
-        retObj._cmap = LinearSegmentedColormap(display_name, segmentdata=cdict, N=num_interpol)
+        retObj._cmap = LinearSegmentedColormap.from_list(display_name, cm_data)
         retObj._display_name = display_name
         return retObj
     
@@ -1253,11 +1266,11 @@ class HistEqNormalize(mplcols.Normalize):
         if data_array.size == 0:
             mplcols.Normalize.__init__(self, 0, 1, clip)
         else:
-            mplcols.Normalize.__init__(self, np.min(data_array), np.max(data_array), clip)
+            mplcols.Normalize.__init__(self, np.nanmin(data_array), np.nanmax(data_array), clip)
 
     def __call__(self, value, clip=None):
         #Note that value is a masked array of all the values to be plotted!
-        return value.argsort().argsort()/(value.size-1)
+        return np.ma.array(value.argsort().argsort()/(value.size-1))
 
 class PlotFrame:
     def __init__(self, root_ui, update_func = None, get_attr_func = None, dark_mode = False):
@@ -1276,6 +1289,8 @@ class PlotFrame:
         self.ax_sY = self.fig.add_subplot(gs[1, 1])#, sharey=self.ax)
         self.ax_sX.tick_params(labelbottom=False, bottom=False)
         self.ax_sY.tick_params(labelleft=False, left=False)
+
+        self.ax_cB = self.fig.add_subplot(gs[0, 1])
 
         self.Frame = Frame(master=root_ui)
 
@@ -1426,14 +1441,29 @@ class PlotFrame:
                 if extent[3] > a: extent[3] = a
             
             self.ax.clear()
+            self.ax_cB.clear()
 
             if self.hist_eq_enabled:
                 if self.hist_eq != None:
                     del self.hist_eq
                 self.hist_eq = HistEqNormalize(self.curData[2])
                 self.ax.pcolor(self.curData[0], self.curData[1], self.curData[2], norm=self.hist_eq, shading='nearest', cmap=self._cur_col_key.CMap)
+                #Good reference: https://stackoverflow.com/questions/30608731/how-to-add-colorbar-to-a-histogram
+                if isinstance(self._cur_col_key.CMap, str):
+                    cmap = matplotlib.pyplot.cm.get_cmap(self._cur_col_key.CMap)
+                else:
+                    cmap = self._cur_col_key.CMap
+                matplotlib.colorbar.ColorbarBase(self.ax_cB, cmap=cmap, norm=self.hist_eq, orientation='horizontal')
+                self.ax_cB.xaxis.set_ticks_position('top')
             else:
                 self.ax.pcolor(self.curData[0], self.curData[1], self.curData[2], shading='nearest', cmap=self._cur_col_key.CMap)
+                norm=matplotlib.colors.Normalize(vmin=np.nanmin(self.curData[2]), vmax=np.nanmax(self.curData[2]))
+                if isinstance(self._cur_col_key.CMap, str):
+                    cmap = matplotlib.pyplot.cm.get_cmap(self._cur_col_key.CMap)
+                else:
+                    cmap = self._cur_col_key.CMap
+                matplotlib.colorbar.ColorbarBase(self.ax_cB, cmap=cmap, norm=norm, orientation='horizontal')
+                self.ax_cB.xaxis.set_ticks_position('top')
 
             if not replot:
                 self.ax.axis(extent)
