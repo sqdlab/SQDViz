@@ -1324,7 +1324,7 @@ class PlotFrame:
             xlimts = self.ax.get_xlim()
             xpct = (extent[1] - extent[0])/(np.max(self.curData[0]) - np.min(self.curData[0]))
             ylimts = self.ax.get_ylim()
-            ypct = (extent[3] - extent[2])/(np.max(self.curData[1]) - np.min(self.curData[1]))
+            ypct = (extent[3] - extent[2])/(np.nanmax(self.curData[1]) - np.nanmin(self.curData[1]))
             replot =  xpct > 0.99 and ypct > 0.99
         
         self.curData = (dataX, dataY)
@@ -1344,6 +1344,7 @@ class PlotFrame:
         self.ax.clear()
         self.ax.plot(self.curData[0], self.curData[1])
         self.ax.set_xlim([np.min(self.curData[0]), np.max(self.curData[0])])
+        self.ax.set_ylim([np.nanmin(self.curData[1]), np.nanmax(self.curData[1])])
 
         if not replot:
             self.ax.axis(extent)
@@ -1384,10 +1385,15 @@ class PlotFrame:
 
     def reset_plot(self):
         if self._cur_2D:
-            extent = (min(self.curData[0]), max(self.curData[0]), min(self.curData[1]), max(self.curData[1]))
+            extent = (np.nanmin(self.curData[0]), np.nanmax(self.curData[0]), np.nanmin(self.curData[1]), np.nanmax(self.curData[1]))
             self.ax.axis(extent)
             #Need the plot_2D here as the restore_region doesn't account for the new extent and won't refresh the pcolor until the next plot update...
             self._plot_2D()
+        else:
+            extent = (np.nanmin(self.curData[0]), np.nanmax(self.curData[0]), np.nanmin(self.curData[1]), np.nanmax(self.curData[1]))
+            self.ax.axis(extent)
+            #Need the plot_2D here as the restore_region doesn't account for the new extent and won't refresh the pcolor until the next plot update...
+            self.plot_data_1D(self.curData[0], self.curData[1])
 
     def _plot_2D(self, replot = False):
         if self._cur_2D:
