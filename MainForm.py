@@ -72,6 +72,8 @@ class MainForm:
         Button(master=frame_toolbar, image=self.icon_openhdf5folders, command=self._open_file_hdf5folders).grid(row=0, column=1)
         self.icon_openDAT = PhotoImage(file = "Icons/OpenSQDToolzDAT.png")    #Need to store reference for otherwise garbage collection destroys it...
         Button(master=frame_toolbar, image=self.icon_openDAT, command=self._open_file_dat).grid(row=0, column=2)
+        self.icon_openNext = PhotoImage(file = "Icons/OpenSQDToolzNextfolder.png")    #Need to store reference for otherwise garbage collection destroys it...
+        Button(master=frame_toolbar, image=self.icon_openNext, command=self._open_file_next).grid(row=0, column=3)
         #####################
 
         ###################
@@ -993,6 +995,31 @@ class MainForm:
         self.data_thread_pool = ThreadPool(processes=1)
         self.data_extractor = DataExtractorUQtoolsDAT(file_path, self.data_thread_pool)
         self.init_ui()
+
+    def _open_file_next(self):
+        if not isinstance(self.data_extractor, DataExtractorH5single):
+            return
+
+        cur_file = self.data_extractor.file_name
+        cur_exp_dir = os.path.dirname(cur_file)
+        cur_parent_dir = os.path.dirname(cur_exp_dir) + '/'  #Should exist...
+
+        dirs = [x[0] for x in os.walk(cur_parent_dir)]
+        cur_ind = dirs.index(cur_exp_dir)
+        cur_ind = cur_ind + 1
+        filename = ''
+        while cur_ind < len(dirs):
+            cur_file = dirs[cur_ind]+'/data.h5'
+            if os.path.exists(cur_file):
+                filename = cur_file
+                break
+            cur_ind = cur_ind + 1
+        if filename == '':
+            return
+
+        self.reset_ui()
+        self._open_sqdtoolz_hdf5(filename)
+
 
     def _event_btn_PPupdate_plot(self):
         self.cmds_to_execute = ""
