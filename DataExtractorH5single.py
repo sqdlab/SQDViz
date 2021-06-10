@@ -7,6 +7,7 @@ class DataExtractorH5single(DataExtractor):
     def __init__(self, file_name, data_thread_pool):
         super().__init__(data_thread_pool)
 
+        self.file_name = file_name
         self.hdf5_file = h5py.File(file_name, 'r', libver='latest', swmr=True)
         self.dset = self.hdf5_file["data"]
 
