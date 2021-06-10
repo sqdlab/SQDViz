@@ -296,4 +296,24 @@ class PP_IgnoreReg(PostProcessors):
             return (ret_val, )
         
 
+class PP_Log(PostProcessors):
+    def get_description(self):
+        return "Returns the multiplier times Log (base 10) of data."
 
+    def get_input_args(self):
+        return [('Input', 'data'), ('Multiplier', 'float', 20)]
+
+    def get_output_args(self):
+        return [('Output', 'data', 'logData')]
+
+    def __call__(self, *args):
+        
+        ret_val = {}
+        ret_val['x'] = args[0]['x']
+
+        if 'y' in args[0]:
+            ret_val['y'] = args[0]['y']
+        
+        ret_val['data'] = args[1]*np.log10(args[0]['data'])
+
+        return (ret_val, )
