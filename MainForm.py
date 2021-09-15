@@ -701,6 +701,12 @@ class MainForm:
             cur_child_ui_elem.destroy()
         self.frm_proc_disp_children = []
 
+    def is_float(self, val):
+        try:
+            float(val)
+            return True
+        except ValueError:
+            return False
     def _callback_tbx_post_procs_disp_callback(self, cur_proc, arg_index, strVal):
         cur_proc['ArgsInput'][arg_index] = strVal
         self.lstbx_procs_current.modify_selected_index(self._post_procs_current_disp_text(cur_proc))
@@ -709,6 +715,16 @@ class MainForm:
         #Check for positive or negative integers...
         if strVal.isdigit() or (strVal.startswith('-') and strVal[1:].isdigit()):
             cur_proc['ArgsInput'][arg_index] = int(strVal)
+            #No need to update the listbox if the non-data arguments are not shown
+            # self.lstbx_procs_current.modify_selected_index(self._post_procs_current_disp_text(cur_proc))
+            self.root.bell()
+            return True
+        else:
+            return False
+    def _callback_tbx_post_procs_disp_callback_Float(self, cur_proc, arg_index, strVal):
+        #Check for positive or negative integers...
+        if strVal != '' and self.is_float(strVal):
+            cur_proc['ArgsInput'][arg_index] = float(strVal)
             #No need to update the listbox if the non-data arguments are not shown
             # self.lstbx_procs_current.modify_selected_index(self._post_procs_current_disp_text(cur_proc))
             self.root.bell()
@@ -804,6 +820,8 @@ class MainForm:
                 tbx_proc_output.insert(END, cur_proc['ArgsInput'][ind])
                 if cur_arg[1] == 'int':
                     tbx_proc_output['validatecommand'] = (tbx_proc_output.register( partial(self._callback_tbx_post_procs_disp_callback_Int, cur_proc, ind) ), "%P")
+                elif cur_arg[1] == 'float':
+                    tbx_proc_output['validatecommand'] = (tbx_proc_output.register( partial(self._callback_tbx_post_procs_disp_callback_Float, cur_proc, ind) ), "%P")
                 else:
                     tbx_proc_output['validatecommand'] = (tbx_proc_output.register( partial(self._callback_tbx_post_procs_disp_callback, cur_proc, ind) ), "%P")
                 tbx_proc_output.grid(row=row_off, column=1, sticky='we')

@@ -314,7 +314,10 @@ class PP_Log(PostProcessors):
         if 'y' in args[0]:
             ret_val['y'] = args[0]['y']
         
-        ret_val['data'] = float(args[1])*np.log10(args[0]['data'])
+        #Make any non-positive values NaN...
+        temp_data = args[0]['data'][:]
+        temp_data[temp_data <= 0] = np.nan
+        ret_val['data'] = args[1]*np.log10(temp_data)
 
         return (ret_val, )
 
