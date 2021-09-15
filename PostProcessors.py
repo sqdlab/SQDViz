@@ -314,6 +314,27 @@ class PP_Log(PostProcessors):
         if 'y' in args[0]:
             ret_val['y'] = args[0]['y']
         
-        ret_val['data'] = args[1]*np.log10(args[0]['data'])
+        ret_val['data'] = float(args[1])*np.log10(args[0]['data'])
 
+        return (ret_val, )
+
+class PP_UnwrapPhase(PostProcessors):
+    def get_description(self):
+        return "Unwraps phase values (in radians)."
+
+    def get_input_args(self):
+        return [('Input dataset', 'data')]
+
+    def get_output_args(self):
+        return [('Unwrapped Phase', 'data', 'UnwrappedPhase')]
+
+    def __call__(self, *args):
+        ret_val = {}
+        ret_val['x'] = args[0]['x']
+
+        if 'y' in args[0]:
+            ret_val['y'] = args[0]['y']
+            ret_val['data'] = np.unwrap(args[0]['data'], axis=1)
+        else:
+            ret_val['data'] = np.unwrap(args[0]['data'])
         return (ret_val, )
