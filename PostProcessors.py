@@ -1,3 +1,4 @@
+import enum
 import sys, inspect
 import numpy as np
 import scipy
@@ -340,4 +341,49 @@ class PP_UnwrapPhase(PostProcessors):
             ret_val['data'] = np.unwrap(args[0]['data'], axis=1)
         else:
             ret_val['data'] = np.unwrap(args[0]['data'])
+        return (ret_val, )
+
+
+class PP_DetrendX(PostProcessors):
+    def get_description(self):
+        return "For every horizontal line slice, a fitted nth order polynomial is subtracted."
+
+    def get_input_args(self):
+        return [('Input dataset', 'data'), ('Poly. Order', 'int', 1)]
+
+    def get_output_args(self):
+        return [('Detrended', 'data', 'DetrendX')]
+
+    def __call__(self, *args):
+        ret_val = {}
+        ret_val['x'] = args[0]['x']
+
+        if 'y' in args[0]:
+            ret_val['y'] = args[0]['y']
+            ret_val['data'] = args[0]['data']*1.0
+
+            for m, cur_vals in enumerate(args[0]['data']):
+                y_vals = cur_vals
+                x_vals = np.arange(y_vals.size)
+
+                #Remove NaNs...
+                idx = np.isfinite(y_vals)
+                x_vals = x_vals[idx]
+                y_vals = y_vals[idx]
+
+                if y_vals.size > 0:
+                    p = np.poly1d(np.polyfit(x_vals, y_vals, args[1] ))
+                    ret_val['data'][m] = args[0]['data'][m] - p(np.arange(y_vals.size))
+        else:
+            y_vals = args[0]['data']
+            x_vals = np.arange(y_vals.size)
+
+            #Remove NaNs...
+            idx = np.isfinite(y_vals)
+            x_vals = x_vals[idx]
+            y_vals = y_vals[idx]
+
+            if y_vals.size > 0:
+                p = np.poly1d(np.polyfit(x_vals, y_vals, args[1] ))
+                ret_val['data'] = args[0]['data'] - p(np.arange(y_vals.size))
         return (ret_val, )
