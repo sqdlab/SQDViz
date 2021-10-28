@@ -34,6 +34,8 @@ from functools import partial
 import json
 import os
 
+import warnings
+
 class MainForm:
     def __init__(self, dark_mode = False):
         self.root = tk.Tk()
@@ -1120,10 +1122,11 @@ class MainForm:
         self.lbl_procs_errors['text'] = ""
 
         #Update plots
-        if 'y' in cur_data:
-            self.plot_main.plot_data_2D(cur_data['x'], cur_data['y'], cur_data['data'])
-        else:
-            self.plot_main.plot_data_1D(cur_data['x'], cur_data['data'])
+        if 'data' in cur_data:  #Occurs when the dataset is empty...
+            if 'y' in cur_data:
+                self.plot_main.plot_data_2D(cur_data['x'], cur_data['y'], cur_data['data'])
+            else:
+                self.plot_main.plot_data_1D(cur_data['x'], cur_data['data'])
         return True
 
     def _event_quit():
@@ -1401,7 +1404,9 @@ class PlotFrame:
             xlimts = self.ax.get_xlim()
             xpct = (extent[1] - extent[0])/(np.max(self.curData[0]) - np.min(self.curData[0]))
             ylimts = self.ax.get_ylim()
-            ypct = (extent[3] - extent[2])/(np.nanmax(self.curData[1]) - np.nanmin(self.curData[1]))
+            with warnings.catch_warnings(): #To suppress: "RuntimeWarning: All-NaN slice encountered"
+                warnings.filterwarnings('ignore', r'All-NaN (slice|axis) encountered')
+                ypct = (extent[3] - extent[2])/(np.nanmax(self.curData[1]) - np.nanmin(self.curData[1]))
             replot =  xpct > 0.99 and ypct > 0.99
         
         self.curData = (dataX, dataY)
@@ -1421,7 +1426,12 @@ class PlotFrame:
         self.ax.clear()
         self.ax.plot(self.curData[0], self.curData[1])
         self.ax.set_xlim([np.min(self.curData[0]), np.max(self.curData[0])])
-        self.ax.set_ylim([np.nanmin(self.curData[1]), np.nanmax(self.curData[1])])
+        #Check if the y-axis bounds are sensible...
+        with warnings.catch_warnings(): #To suppress: "RuntimeWarning: All-NaN slice encountered"
+            warnings.filterwarnings('ignore', r'All-NaN (slice|axis) encountered')
+            yBnds = np.isnan([np.nanmin(self.curData[1]), np.nanmax(self.curData[1])])
+        if not yBnds[0] and not yBnds[1]:   #Technically it's always only False/False or True/True? Doesn't really matter...
+            self.ax.set_ylim(yBnds)
 
         if not replot:
             self.ax.axis(extent)
@@ -1520,7 +1530,9 @@ class PlotFrame:
     def get_data_limits(self):
         if len(self.curData) > 1:
             #Note that the y-axes can be multi-dimensional if it has switched from 1D/2D plotting, but it's usually transient and doesn't matter for cursors (so np.max/np.min is fine...)
-            ret_val = [np.min(self.curData[0]), np.max(self.curData[0]), np.nanmin(self.curData[1]), np.nanmax(self.curData[1])]
+            with warnings.catch_warnings(): #To suppress: "RuntimeWarning: All-NaN slice encountered"
+                warnings.filterwarnings('ignore', r'All-NaN (slice|axis) encountered')
+                ret_val = [np.min(self.curData[0]), np.max(self.curData[0]), np.nanmin(self.curData[1]), np.nanmax(self.curData[1])]
             if np.isnan(ret_val[2]) or np.isnan(ret_val[3]):    #Should be NaN on both cases, but just use 'or' for now...
                 ret_val[2] = 0
                 ret_val[3] = 0
