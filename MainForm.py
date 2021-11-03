@@ -1429,8 +1429,9 @@ class PlotFrame:
         #Check if the y-axis bounds are sensible...
         with warnings.catch_warnings(): #To suppress: "RuntimeWarning: All-NaN slice encountered"
             warnings.filterwarnings('ignore', r'All-NaN (slice|axis) encountered')
-            yBnds = np.isnan([np.nanmin(self.curData[1]), np.nanmax(self.curData[1])])
-        if not yBnds[0] and not yBnds[1]:   #Technically it's always only False/False or True/True? Doesn't really matter...
+            yBnds = [np.nanmin(self.curData[1]), np.nanmax(self.curData[1])]
+            yBndChecks = np.isnan(yBnds)
+        if not yBndChecks[0] and not yBndChecks[1]:   #Technically it's always only False/False or True/True? Doesn't really matter...
             self.ax.set_ylim(yBnds)
 
         if not replot:
