@@ -296,8 +296,25 @@ class MainForm:
         self.btn_proc_list_del = Button(frm_proc_list, text="❌", command=self._event_btn_post_proc_delete)
         self.btn_proc_list_del.grid(row=1, column=2, sticky="we")
         #
+        frame_open_close = Frame(master=frm_proc_list)
+        self.cmbx_proc_list_open = ComboBoxEx(frame_open_close, "")
+        self.cmbx_proc_list_open.Frame.grid(row=0,column=0)
+        self.icon_configopen = PhotoImage(file = "Icons/ConfigOpen.png")    #Need to store reference for otherwise garbage collection destroys it...
+        Button(frame_open_close, image=self.icon_configopen, command=self._event_post_procs_open_config).grid(row=0, column=1)
+        self._post_procs_fill_configs()
+        self.tbx_proc_list_save = ttk.Entry(frame_open_close)
+        self.tbx_proc_list_save.grid(row=1,column=0)
+        self.icon_configsave = PhotoImage(file = "Icons/ConfigSave.png")    #Need to store reference for otherwise garbage collection destroys it...
+        Button(frame_open_close, image=self.icon_configsave, command=self._event_post_procs_save_config).grid(row=1, column=1)
+        frame_open_close.grid(row=2,column=0,columnspan=3)
+        frame_open_close.rowconfigure(0,weight=0)
+        frame_open_close.rowconfigure(1,weight=0)
+        frame_open_close.columnconfigure(0, weight=1)
+        frame_open_close.columnconfigure(1, weight=0)
+        #
         frm_proc_list.rowconfigure(0, weight=1)
         frm_proc_list.rowconfigure(1, weight=0)
+        frm_proc_list.rowconfigure(2, weight=0)
         frm_proc_list.columnconfigure(0, weight=1)
         frm_proc_list.columnconfigure(1, weight=1)
         frm_proc_list.columnconfigure(2, weight=1)
@@ -894,6 +911,44 @@ class MainForm:
             self.btn_proc_list_del.configure(state='disabled')
         else:
             self.btn_proc_list_del.configure(state='normal')
+
+    def _post_procs_update_configs_from_file(self):
+        #Create file if it does not exist...
+        if not os.path.isfile('config_post_procs.json'):
+            with open('config_post_procs.json', 'w') as outfile:
+                json.dump({}, outfile, indent=4)
+                self._avail_post_proc_configs = {}
+            return
+        
+        with open('config_post_procs.json', 'r') as outfile:
+            self._avail_post_proc_configs = json.load(outfile)
+
+    def _post_procs_fill_configs(self):
+        self._post_procs_update_configs_from_file()
+        self.cmbx_proc_list_open.update_vals(self._avail_post_proc_configs.keys())
+    
+    def _event_post_procs_open_config(self):
+        #Transfer the configuration (gathered from the file earlier) into the current list of post-processors
+        self.cur_post_procs = self._avail_post_proc_configs[self.cmbx_proc_list_open.get_sel_val()]
+
+        #Create the post-processor objects appropriately
+        for cur_proc in self.cur_post_procs:
+            cur_proc['ProcessObj'] = self.post_procs_all[cur_proc['ProcessName']]
+        
+        #Select the last post-processor to display...
+        self._post_procs_fill_current(len(self.cur_post_procs)-1)
+    
+    def _event_post_procs_save_config(self):
+        self._post_procs_update_configs_from_file()
+        cur_name = self.tbx_proc_list_save.get()
+        if cur_name == "":
+            return
+        self._avail_post_proc_configs[cur_name] = self.cur_post_procs
+        
+        with open('config_post_procs.json', 'w') as outfile:
+            json.dump(self._avail_post_proc_configs, outfile, indent=4, default=lambda o: '<not serializable>')
+
+        self._post_procs_fill_configs()
 
 
     def reset_ui(self):
