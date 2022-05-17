@@ -343,7 +343,6 @@ class PP_UnwrapPhase(PostProcessors):
             ret_val['data'] = np.unwrap(args[0]['data'])
         return (ret_val, )
 
-
 class PP_DetrendX(PostProcessors):
     def get_description(self):
         return "For every horizontal line slice, a fitted nth order polynomial is subtracted."
@@ -386,4 +385,59 @@ class PP_DetrendX(PostProcessors):
             if y_vals.size > 0:
                 p = np.poly1d(np.polyfit(x_vals, y_vals, args[1] ))
                 ret_val['data'] = args[0]['data'] - p(np.arange(y_vals.size))
+        return (ret_val, )
+
+class PP_DerivX(PostProcessors):
+    def get_description(self):
+        return "Derivative across x-axis using a first order finite difference. Note: first point is a copy of the second point."
+
+    def get_input_args(self):
+        return [('Input dataset', 'data')]
+
+    def get_output_args(self):
+        return [('Deriv-X', 'data', 'DerivX')]
+
+    def __call__(self, *args):
+        ret_val = {}
+        ret_val['x'] = args[0]['x']
+
+        if 'y' in args[0]:
+            ret_val['y'] = args[0]['y']
+            ret_val['data'] = args[0]['data']*1.0
+
+            derivX = (ret_val['data'][:,1:] - ret_val['data'][:,:-1]) / (ret_val['x'][1:] - ret_val['x'][:-1])
+            ret_val['data'] = np.c_[derivX[:,0], derivX]
+        else:
+            ret_val['data'] = args[0]['data']*1.0
+
+            derivX = (ret_val['data'][1:] - ret_val['data'][:-1]) / (ret_val['x'][1:] - ret_val['x'][:-1])
+            ret_val['data'] = np.concatenate([[derivX[0]], derivX])
+        return (ret_val, )
+
+class PP_DerivY(PostProcessors):
+    def get_description(self):
+        return "Derivative across y-axis using a first order finite difference. Note: first bottom point is a copy of the second point. In addition, 1D plots simply perform a 1D x-derivative."
+
+    def get_input_args(self):
+        return [('Input dataset', 'data')]
+
+    def get_output_args(self):
+        return [('Deriv-Y', 'data', 'DerivY')]
+
+    def __call__(self, *args):
+        ret_val = {}
+        ret_val['x'] = args[0]['x']
+
+        if 'y' in args[0]:
+            ret_val['y'] = args[0]['y']
+            ret_val['data'] = args[0]['data']*1.0
+
+            derivY = (ret_val['data'][1:,:] - ret_val['data'][:-1,:]).T / (ret_val['y'][1:] - ret_val['y'][:-1])
+            derivY = derivY.T
+            ret_val['data'] = np.r_[[derivY[0,:]], derivY]
+        else:
+            ret_val['data'] = args[0]['data']*1.0
+
+            derivY = (ret_val['data'][1:] - ret_val['data'][:-1]) / (ret_val['x'][1:] - ret_val['x'][:-1])
+            ret_val['data'] = np.concatenate([[derivY[0]], derivY])
         return (ret_val, )
