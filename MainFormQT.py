@@ -66,6 +66,8 @@ class MainWindow:
         #Setup current post-processing analysis ListBox and select the first entry (the final output entry)
         self._post_procs_fill_current(0)
         
+        self.analysis_cursors = []
+
         #Initial update time-stamp
         self.last_update_time = time.time()
 
@@ -163,26 +165,12 @@ class MainWindow:
             if self.data_extractor.data_ready():
                 (indep_params, final_data, dict_rem_slices) = self.data_extractor.get_data()
                 cur_var_ind = self.dep_vars.index(self.win.cmbx_dep_var.currentText())
-                if self.plot_type == 1 and len(indep_params) == 1:
-                    self.data_line.setData(indep_params[0], final_data[cur_var_ind])
-                elif self.plot_type == 2 and len(indep_params) == 2:
-                    #Assuming a uniformly sampled axis, calculate bounds
-                    x,y = indep_params[0], indep_params[1]
-                    dx = (x[-1]-x[0])/(x.size-1)
-                    dy = (y[-1]-y[0])/(y.size-1)
-                    xMin = x[0] - dx*0.5
-                    xMax = x[-1] + dx*0.5
-                    yMin = y[0] - dy*0.5
-                    yMax = y[-1] + dy*0.5
-                    #
-                    self.x_data = x
-                    self.y_data = y
-                    self.z_data = final_data[cur_var_ind]
-                    self.data_img.setImage(self.z_data)
-                    self.data_img.setRect(QtCore.QRectF(xMin, yMin, xMax-xMin, yMax-yMin))
-                    
-                    self.colBarItem.setLevels((self.z_data.min(), self.z_data.max()))
-
+                if not self.update_plot_post_proc(indep_params, final_data):
+                    #Not post-processed (hence not plotted) - so do so now...
+                    if self.plot_type == 1 and len(indep_params) == 1:
+                        self.data_line.setData(indep_params[0], final_data[cur_var_ind])
+                    elif self.plot_type == 2 and len(indep_params) == 2:
+                        self.plot_2D(indep_params[0], indep_params[1], final_data[cur_var_ind])
                 #   
                 #Populate the slice candidates
                 #
@@ -541,6 +529,100 @@ class MainWindow:
         self.cur_post_procs[sel_index]['ArgsOutput'][arg_index] = the_text
         self.win.lstbx_cur_post_procs.item(sel_index).setText(self._post_procs_current_disp_text(self.cur_post_procs[sel_index]))
         return True
+    
+    def update_plot_post_proc(self, indep_params, dep_params):
+        if len(self.cur_post_procs) == 0:
+            # self.lbl_procs_errors['text'] = f"Add functions to activate postprocessing."
+            return False
+
+        #Drop the update if there are non-1D commands enabled...
+        if len(indep_params) == 1:
+            for ind, cur_proc in enumerate(self.cur_post_procs):
+                if not cur_proc['ProcessObj'].supports_1D() and cur_proc['Enabled']:
+                    # self.lbl_procs_errors['text'] = f"A non-1D plot process has been enabled in step #{ind}."
+                    return False
+
+        #Data declarations
+        data = {}
+        for ind, cur_dep_var in enumerate(self.dep_vars):
+            if len(indep_params) == 1:
+                data[cur_dep_var] = {'x': indep_params[0], 'data': dep_params[ind]}
+            else:
+                data[cur_dep_var] = {'x': indep_params[0], 'y': indep_params[1], 'data': dep_params[ind].T}    #Transposed due to pcolor's indexing requirements...
+
+        #Available analysis cursors
+        cur_analy_curs_names = [x.Name for x in self.analysis_cursors]
+
+        #Process each command sequentially
+        for cur_proc_ind, cur_proc in enumerate(self.cur_post_procs):
+            if not cur_proc['Enabled']:
+                continue
+
+            #Process input arguments
+            cur_args = cur_proc['ArgsInput'][:]
+            for ind, cur_arg in enumerate(cur_proc['ProcessObj'].get_input_args()):
+                if cur_arg[1] == 'data':
+                    if cur_args[ind] in data:
+                        cur_args[ind] = data[cur_args[ind]]
+                    else:
+                        # self.lbl_procs_errors['text'] = f"Dataset \'{cur_args[ind]}\' does not exist in step #{cur_proc_ind+1}"
+                        return False
+                elif cur_arg[1] == 'cursor':
+                    the_cursor = None
+                    #Find cursor
+                    for cur_curse in self.analysis_cursors:
+                        if cur_curse.Name == cur_args[ind]:
+                            if type(cur_arg[2]) == tuple or type(cur_arg[2]) == list:
+                                if cur_curse.Type in cur_arg[2]:
+                                    the_cursor = cur_curse
+                                    break
+                            elif cur_curse.Type == cur_arg[2]:
+                                the_cursor = cur_curse
+                                break
+                    if the_cursor != None:
+                        cur_args[ind] = the_cursor
+                    else:
+                        # self.lbl_procs_errors['text'] = f"Cursor \'{cur_args[ind]}\' is not a valid analysis cursor in step #{cur_proc_ind+1}"
+                        return False
+            #Execute command
+            output_tuples = cur_proc['ProcessObj'](*cur_args)
+            #Map the outputs into the dictionary
+            for ind, cur_arg in enumerate(cur_proc['ProcessObj'].get_output_args()):
+                if cur_arg[1] == 'data':
+                    data[cur_proc['ArgsOutput'][ind]] = output_tuples[ind]
+        
+        if self.cur_post_proc_output in data:
+            cur_data = data[self.cur_post_proc_output]
+        else:
+            # self.lbl_procs_errors['text'] = f"Dataset \'{self.cur_post_proc_output}\' does not exist"   #It's the final entry - if it doesn't exist yet, it doesn't exist...
+            return False
+
+        #No errors - so reset the message...
+        # self.lbl_procs_errors['text'] = ""
+
+        #Update plots
+        if 'data' in cur_data:  #Occurs when the dataset is empty...
+            if 'y' in cur_data:
+                self.plot_2D(cur_data['x'], cur_data['y'], cur_data['data'].T)
+            else:
+                self.data_line.setData(cur_data['x'], cur_data['data'])
+        return True
+    
+    def plot_2D(self, x, y, z):
+        dx = (x[-1]-x[0])/(x.size-1)
+        dy = (y[-1]-y[0])/(y.size-1)
+        xMin = x[0] - dx*0.5
+        xMax = x[-1] + dx*0.5
+        yMin = y[0] - dy*0.5
+        yMax = y[-1] + dy*0.5
+        #
+        self.x_data = x
+        self.y_data = y
+        self.z_data = z
+        self.data_img.setImage(self.z_data)
+        self.data_img.setRect(QtCore.QRectF(xMin, yMin, xMax-xMin, yMax-yMin))
+        self.colBarItem.setLevels((self.z_data.min(), self.z_data.max()))
+
 
 class UiLoader(QUiLoader):
     def createWidget(self, className, parent=None, name=""):
