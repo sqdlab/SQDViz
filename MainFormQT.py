@@ -129,6 +129,8 @@ class MainWindow:
         self.plt_curs_y = None
         self.data_curs_x = None
         self.data_curs_y = None
+        self.plt_colhist = None
+        self.data_colhist = None
         #
         self.y_data = None
 
@@ -142,7 +144,7 @@ class MainWindow:
 
             self.plt_curs_x = self.plot_layout_widget.addPlot(row=0, col=1)
             self.data_curs_x = self.plt_curs_x.plot([],[])
-            self.plt_curs_x.setXLink(self.plt_main)
+            self.plt_curs_x.setXLink(self.plt_main) 
 
             self.plt_curs_y = self.plot_layout_widget.addPlot(row=1, col=0)
             self.data_curs_y = self.plt_curs_y.plot([],[])
@@ -150,6 +152,9 @@ class MainWindow:
             self.plt_curs_y.hideAxis('left')
             self.plt_curs_y.invertX(True)
             self.plt_curs_y.setYLink(self.plt_main)
+
+            self.plt_colhist = self.plot_layout_widget.addPlot(row=0, col=0)
+            self.data_colhist = self.plt_colhist.plot([],[])      
 
             self.data_img = pg.ImageItem()
             self.plt_main.addItem( self.data_img )
@@ -160,8 +165,13 @@ class MainWindow:
             self.cursor.sigChangedCurY.connect(self.update_cursor_x)
             
             cm = self.colour_maps[self.win.cmbx_ckey.currentIndex()].CMap
-            self.colBarItem = pg.ColorBarItem( values= (0, 1), colorMap=cm )
-            self.colBarItem.setImageItem( self.data_img, insert_in=self.plt_main )
+            self.colBarItem = pg.ColorBarItem( values= (0, 1), colorMap=cm, orientation='horizontal' )
+            self.colBarItem.setImageItem( self.data_img, insert_in=self.plt_colhist )
+
+            self.plot_layout_widget.ci.layout.setRowStretchFactor(0, 1)
+            self.plot_layout_widget.ci.layout.setRowStretchFactor(1, 4)
+            self.plot_layout_widget.ci.layout.setColumnStretchFactor(0, 1)
+            self.plot_layout_widget.ci.layout.setColumnStretchFactor(1, 4)
         self.plot_type = plot_dim
 
     def event_btn_OK(self):
@@ -671,7 +681,16 @@ class MainWindow:
         self.z_data = z
         self.data_img.setImage(self.z_data)
         self.data_img.setRect(QtCore.QRectF(xMin, yMin, xMax-xMin, yMax-yMin))
-        self.colBarItem.setLevels((self.z_data.min(), self.z_data.max()))
+        #
+        zData = self.z_data.flatten()
+        hist_vals, bin_edges = np.histogram(zData, bins=int(zData.size*0.01), density=True)
+        centres = 0.5*(bin_edges[1:]+bin_edges[:-1])
+        self.data_colhist.setData(centres, hist_vals)
+        #
+        z_min, z_max = self.colBarItem.levels()
+        zMin, zMax = self.z_data.min(), self.z_data.max()
+        if np.abs(zMin - z_min) > 1e-12 or np.abs(zMax - z_max) > 1e-12:
+            self.colBarItem.setLevels((zMin, zMax))
 
 
 class UiLoader(QUiLoader):
