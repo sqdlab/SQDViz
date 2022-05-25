@@ -42,7 +42,10 @@ class MainWindow:
         self.win.rbtn_plot_2D.toggled.connect(self.event_rbtn_plot_axis)
 
         #Setup the slicing variables
-        self.dict_var_slices = {}   #They values are given as: (current index, numpy array of values)
+        self.dict_var_slices = {}   #They values are given as: (currently set slicing index, numpy array of values)
+        self.cur_slice_var_keys_lstbx = []
+        self.win.lstbx_param_slices.itemSelectionChanged.connect(self._event_slice_var_selection_changed)
+        self.win.sldr_param_slices.valueChanged.connect(self._event_sldr_slice_vars_val_changed)
 
         #Initial update time-stamp
         self.last_update_time = time.time()
@@ -161,6 +164,38 @@ class MainWindow:
                     
                     self.colBarItem.setLevels((self.z_data.min(), self.z_data.max()))
 
+                #   
+                #Populate the slice candidates
+                #
+                cur_lstbx_vals = []
+                prev_dict = self.dict_var_slices.copy()
+                self.dict_var_slices = {}   #Clear previous dictionary and only leave entries if it had previous slices present...
+                #Gather currently selected value so it stays selected
+                cur_sel = self.get_listbox_sel_ind(self.win.lstbx_param_slices)
+                if cur_sel != -1:
+                    cur_var = self.cur_slice_var_keys_lstbx[cur_sel]
+                else:
+                    cur_var = ""
+                cur_sel = -1
+                #Update the current list of slicing variables with the new list...
+                self.cur_slice_var_keys_lstbx = []
+                for m, cur_key in enumerate(dict_rem_slices.keys()):
+                    #Check if key already exists
+                    if cur_key in prev_dict:
+                        self.dict_var_slices[cur_key] = (prev_dict[cur_key][0], dict_rem_slices[cur_key])
+                    else:
+                        self.dict_var_slices[cur_key] = (0, dict_rem_slices[cur_key])
+                    cur_lstbx_vals += [self._slice_Var_disp_text(cur_key, self.dict_var_slices[cur_key])]
+                    self.cur_slice_var_keys_lstbx += [cur_key]
+                    if cur_var == cur_key:
+                        cur_sel = m
+                self.listbox_safe_clear(self.win.lstbx_param_slices)
+                for ind, cur_val in enumerate(cur_lstbx_vals):
+                    cur_item = QtWidgets.QListWidgetItem(cur_val)
+                    self.win.lstbx_param_slices.addItem(cur_item)
+                    if cur_sel == ind:
+                        self.win.lstbx_param_slices.setCurrentItem(cur_item)
+
             #Setup new request if no new data is being fetched
             if not self.data_extractor.isFetching:
                 #Get current update time
@@ -181,13 +216,64 @@ class MainWindow:
 
                     self.last_update_time = time.time()
 
+    def listbox_safe_clear(self, listbox):
+        for i in range(listbox.count()):
+            item = listbox.item(i)
+            item.setSelected(False)
+        listbox.clear()
 
-        # xVals = np.arange(0,10,0.1)
-        # yVals = np.sin(xVals) + 0.1*np.random.rand(xVals.size)
+    def get_listbox_sel_inds(self, listbox):
+        return [x.row() for x in listbox.selectedIndexes()]
+    def get_listbox_sel_ind(self, listbox):
+        cur_ind = self.get_listbox_sel_inds(listbox)
+        if len(cur_ind) == 0:   #i.e. empty
+            return -1
+        else:
+            return cur_ind[0]
 
-        # self.data_line.setData(xVals, yVals)  # Update the data.
+    def _slice_Var_disp_text(self, slice_var_name, cur_slice_var_params):
+        '''
+        Generates the text to display the summary in the ListBox for slicing variables.
 
-    # def btn_event_open(self):
+        Input:
+            - slice_var_name       - String name of the current slicing variable to display in the ListBox
+            - cur_slice_var_params - A tuple given as (current index, numpy array of allowed values)
+        
+        Returns a string of the text to display - i.e. Name current-val (min-val, max-val).
+        '''
+        cur_val = cur_slice_var_params[1][cur_slice_var_params[0]]
+        return f"{slice_var_name}: {cur_val}"
+    def _event_slice_var_selection_changed(self):
+        cur_ind = self.get_listbox_sel_ind(self.win.lstbx_param_slices)
+        if cur_ind == -1:   #i.e. empty
+            return
+        cur_slice_var = self.dict_var_slices[self.cur_slice_var_keys_lstbx[cur_ind]]
+        self.win.sldr_param_slices.setMinimum(0)
+        self.win.sldr_param_slices.setMaximum(cur_slice_var[1].size-1)
+        self.win.sldr_param_slices.setValue(cur_slice_var[0])
+        self._update_label_slice_var_val(cur_ind)
+    def _update_label_slice_var_val(self, var_ind):
+        #Update Label (should be safe as the callers have verified that there is a selected index...)
+        cur_var_name = self.cur_slice_var_keys_lstbx[var_ind]
+        min_val = np.min(self.dict_var_slices[cur_var_name][1])
+        max_val = np.max(self.dict_var_slices[cur_var_name][1])
+        self.win.lbl_param_slices.setText(f"Range: {min_val}➜{max_val}")
+    def _event_sldr_slice_vars_val_changed(self):
+        new_index = self.win.sldr_param_slices.value()
+        #Calculate the index of the array with the value closest to the proposed value
+        cur_sel_ind = self.get_listbox_sel_ind(self.win.lstbx_param_slices)
+        if cur_sel_ind == -1:   #i.e. empty
+            return
+        cur_var_name = self.cur_slice_var_keys_lstbx[cur_sel_ind]
+        if new_index != self.dict_var_slices[cur_var_name][0]:
+            #Update the array index
+            self.dict_var_slices[cur_var_name] = (new_index, self.dict_var_slices[cur_var_name][1])
+            #Update ListBox
+            item = self.win.lstbx_param_slices.item(cur_sel_ind)
+            item.setText(self._slice_Var_disp_text(cur_var_name, self.dict_var_slices[cur_var_name]))
+            #Update Label
+            self._update_label_slice_var_val(cur_sel_ind)
+
 
 class UiLoader(QUiLoader):
     def createWidget(self, className, parent=None, name=""):
