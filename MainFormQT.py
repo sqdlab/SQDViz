@@ -83,7 +83,7 @@ class MainWindow:
             self.data_img = pg.ImageItem()
             self.plt_main.addItem( self.data_img )
 
-            self.cursor = Cursor_Cross()
+            self.cursor = Cursor_Cross(self.plt_main)
             self.plt_main.addItem(self.cursor)
             self.cursor.sigChangedCurX.connect(self.update_cursor_y)
             self.cursor.sigChangedCurY.connect(self.update_cursor_x)

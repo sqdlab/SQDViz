@@ -4,15 +4,14 @@ from pyqtgraph import functions as fn
 import numpy as np
 
 
-# class Cursor_Cross(pg.GraphItem):
+# class Cursor_CrossCentre(pg.ScatterPlotItem):
 #     def __init__(self):
 #         self.dragPoint = None
 #         self.dragOffset = None
 #         self.pos = np.array([0,0])
-#         pg.GraphItem.__init__(self)
-#         self.scatter.sigClicked.connect(self.clicked)
-#         self.setData(pos=np.array([[0.0,0.0]]), size=1, symbol=['o'], pxMode=False)
-#         self.line_h = pg.InfiniteLine(QtCore.QPointF(0.00, 0), angle=90)
+#         pg.ScatterPlotItem.__init__(self)
+#         # self.scatter.sigClicked.connect(self.clicked)
+#         self.addPoints(x=[0], y=[0])
 #         self.updateGraph()
         
 #     def setData(self, **kwds):
@@ -20,7 +19,6 @@ import numpy as np
         
 #     def updateGraph(self):
 #         pg.GraphItem.setData(self, **self.data)
-#         self.line_h.setValue(self.data['pos'][0][0])
         
 #     def mouseDragEvent(self, ev):
 #         if ev.button() != QtCore.Qt.LeftButton:
@@ -52,7 +50,6 @@ import numpy as np
 #     def clicked(self, pts):
 #         print("clicked: %s" % pts)
 
-
 class Cursor_Cross(pg.GraphicsObject):
     """
     **Bases:** :class:`GraphicsObject <pyqtgraph.GraphicsObject>`
@@ -82,7 +79,7 @@ class Cursor_Cross(pg.GraphicsObject):
         'horizontal': 1,
         }
     
-    def __init__(self, value=1, brush=None, pen=None,
+    def __init__(self, plt_canvas, value=1, brush=None, pen=None,
                  hoverBrush=None, hoverPen=None, movable=True, bounds=None, 
                  span=(0, 1), clipItem=None):        
         pg.GraphicsObject.__init__(self)
@@ -108,6 +105,11 @@ class Cursor_Cross(pg.GraphicsObject):
         # self.lines[0].setTransform(tr, True)
         self.lines = [pg.InfiniteLine(QtCore.QPointF(value, 0), angle=90, **lineKwds), pg.InfiniteLine(QtCore.QPointF(value, 0), angle=0, **lineKwds)]
         
+        # self.centre = pg.ScatterPlotItem()
+        # self.centre.addPoints([0], [0])
+        # self.centre.sigClicked.connect(self.onPointsClicked)
+        # self.centre.setParentItem(self)
+
         for l in self.lines:
             l.setParentItem(self)
             l.sigPositionChangeFinished.connect(self.lineMoveFinished)
@@ -125,6 +127,19 @@ class Cursor_Cross(pg.GraphicsObject):
         self.setHoverBrush(hoverBrush)
         
         self.setMovable(movable)
+
+        plt_canvas.scene().sigMouseMoved.connect(self.mouseMoved)
+
+    def mouseMoved(self,evt):
+        pt_mouse = self.mapFromDevice(evt)
+        rect_centre = self.boundingRect()
+        pt_inside_centre = rect_centre.contains(pt_mouse)
+        for l in self.lines:
+            l.setMovable(not pt_inside_centre)
+
+    def onPointsClicked(self, points):
+        print('Ain\'t getting individual points ', points)
+        points.setPen('b', width=2) 
 
     def getRegion(self):
         """Return the values at the edges of the region."""
@@ -234,12 +249,17 @@ class Cursor_Cross(pg.GraphicsObject):
         if self.clipItem is not None:
             self._updateClipItemBounds()
 
-        rng = self.getRegion()
-        br.setTop(rng[0])
-        br.setBottom(rng[1])
-        length = br.width()
-        br.setRight(br.left() + length * self.span[1])
-        br.setLeft(br.left() + length * self.span[0])
+        nominalBoxSizePx = 20
+        #
+        lenX = self.pixelLength(pg.Point([1,0])) * nominalBoxSizePx
+        lenY = self.pixelLength(pg.Point([0,1])) * nominalBoxSizePx
+
+        br.setTop(self.lines[1].value()+lenY*0.5)
+        br.setBottom(self.lines[1].value()-lenY*0.5)
+        br.setLeft(self.lines[0].value()-lenX*0.5)
+        br.setRight(self.lines[0].value()+lenX*0.5)
+        # br.setRight(br.left() + length * self.span[1])
+        # br.setLeft(br.left() + length * self.span[0])
 
         br = br.normalized()
         
@@ -283,16 +303,17 @@ class Cursor_Cross(pg.GraphicsObject):
         
         if ev.isStart():
             bdp = ev.buttonDownPos()
-            self.cursorOffsets = [l.pos() - bdp for l in self.lines]
-            self.startPositions = [l.pos() for l in self.lines]
+            self.cursorOffset = (self.lines[0].value()-bdp.x(), self.lines[1].value()-bdp.y())
+            self.startPosition = self.get_value()
             self.moving = True
             
         if not self.moving:
             return
             
         self.lines[0].blockSignals(True)  # only want to update once
+        cur_mouse_pos = ev.pos()
         for i, l in enumerate(self.lines):
-            l.setPos(self.cursorOffsets[i] + ev.pos())
+            l.setPos(self.cursorOffset[i] + cur_mouse_pos[i])
         self.lines[0].blockSignals(False)
         self.prepareGeometryChange()
         
@@ -300,7 +321,8 @@ class Cursor_Cross(pg.GraphicsObject):
             self.moving = False
             self.sigRegionChangeFinished.emit(self)
         else:
-            self.sigRegionChanged.emit(self)
+            self.sigChangedCurX.emit(self)
+            self.sigChangedCurY.emit(self)
     
     def get_value(self):
         return (self.lines[0].value(), self.lines[1].value())
@@ -309,7 +331,7 @@ class Cursor_Cross(pg.GraphicsObject):
         if self.moving and ev.button() == QtCore.Qt.MouseButton.RightButton:
             ev.accept()
             for i, l in enumerate(self.lines):
-                l.setPos(self.startPositions[i])
+                l.setPos(self.startPosition[i])
             self.moving = False
             self.sigRegionChanged.emit(self)
             self.sigRegionChangeFinished.emit(self)
