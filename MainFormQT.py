@@ -8,6 +8,7 @@ import numpy as np
 from multiprocessing.pool import ThreadPool
 from DataExtractorH5single import DataExtractorH5single
 import time
+from PostProcessors import*
 
 from Cursors.Cursor_Cross import Cursor_Cross
 
@@ -28,8 +29,6 @@ class MainWindow:
         self.plot_type = 1
         self.data_img = None
 
-
-        # ... init continued ...
         self.timer = QtCore.QTimer()
         self.timer.setInterval(50)
         self.timer.timeout.connect(self.update_plot_data)
@@ -46,6 +45,11 @@ class MainWindow:
         self.cur_slice_var_keys_lstbx = []
         self.win.lstbx_param_slices.itemSelectionChanged.connect(self._event_slice_var_selection_changed)
         self.win.sldr_param_slices.valueChanged.connect(self._event_sldr_slice_vars_val_changed)
+
+        #Setup available postprocessors
+        self.post_procs_all = PostProcessors.get_all_post_processors()
+        self.win.lstbx_plot_analy_funcs.addItems(self.post_procs_all.keys())
+        self.win.lstbx_plot_analy_funcs.itemSelectionChanged.connect(self._event_lstbxPPfunction_changed)
 
         #Initial update time-stamp
         self.last_update_time = time.time()
@@ -273,6 +277,14 @@ class MainWindow:
             item.setText(self._slice_Var_disp_text(cur_var_name, self.dict_var_slices[cur_var_name]))
             #Update Label
             self._update_label_slice_var_val(cur_sel_ind)
+
+    
+    def _event_lstbxPPfunction_changed(self):
+        sel_items = self.win.lstbx_plot_analy_funcs.selectedItems()
+        if len(sel_items) == 0:   #i.e. empty - shouldn't happen as it should be safe as it's only populated once; but just in case...
+            return
+        cur_func = sel_items[0].text()
+        self.win.lbl_plot_analy_funcs.setText( "Description: " + self.post_procs_all[cur_func].get_description() )
 
 
 class UiLoader(QUiLoader):
