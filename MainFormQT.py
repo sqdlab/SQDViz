@@ -1,4 +1,4 @@
-from PySide6 import QtWidgets, QtCore
+from PySide6 import QtWidgets, QtCore, QtGui
 from PySide6.QtUiTools import QUiLoader
 from pyqtgraph import PlotWidget, plot
 import pyqtgraph as pg
@@ -8,7 +8,9 @@ import numpy as np
 from multiprocessing.pool import ThreadPool
 from DataExtractorH5single import DataExtractorH5single
 import time
+
 from PostProcessors import*
+from functools import partial
 
 from Cursors.Cursor_Cross import Cursor_Cross
 
@@ -28,6 +30,8 @@ class MainWindow:
         self.data_line = self.plt_main.plot(hour, temperature)
         self.plot_type = 1
         self.data_img = None
+
+        self.dep_vars = None
 
         self.timer = QtCore.QTimer()
         self.timer.setInterval(50)
@@ -54,9 +58,14 @@ class MainWindow:
         #Currently selected postprocessors
         self.cur_post_procs = []
         self.cur_post_proc_output = "dFinal"
+        self.frm_proc_disp_children = []
+        self.win.lstbx_cur_post_procs.itemSelectionChanged.connect(self._event_lstbx_proc_current_changed)
+        self.win.btn_proc_list_up.clicked.connect(self._event_btn_post_proc_up)
+        self.win.btn_proc_list_down.clicked.connect(self._event_btn_post_proc_down)
+        self.win.btn_proc_list_del.clicked.connect(self._event_btn_post_proc_delete)
         #Setup current post-processing analysis ListBox and select the first entry (the final output entry)
         self._post_procs_fill_current(0)
-
+        
         #Initial update time-stamp
         self.last_update_time = time.time()
 
@@ -351,6 +360,187 @@ class MainWindow:
         if sel_index != -1:
             cur_item = self.win.lstbx_cur_post_procs.item(sel_index)
             self.win.lstbx_cur_post_procs.setCurrentItem(cur_item)
+    def _event_lstbx_proc_current_changed(self):
+        cur_ind = self.get_listbox_sel_ind(self.win.lstbx_cur_post_procs)
+        if cur_ind == -1:   #i.e. empty - shouldn't happen as it should be safe as the listbox should be populated with a selected item; but just in case...
+            return
+        self._post_procs_disp_activate()
+        #Disable the movement arrows if selecting an edge
+        if cur_ind < len(self.cur_post_procs)-1:
+            self.win.btn_proc_list_down.setEnabled(True)
+        else:
+            self.win.btn_proc_list_down.setEnabled(False)
+        if cur_ind == 0 or cur_ind >= len(self.cur_post_procs):
+            self.win.btn_proc_list_up.setEnabled(False)
+        else:
+            self.win.btn_proc_list_up.setEnabled(True)
+        #Disable delete button if selecting the final output entry
+        if cur_ind == len(self.cur_post_procs):
+            self.win.btn_proc_list_del.setEnabled(False)
+        else:
+            self.win.btn_proc_list_del.setEnabled(True)
+    def _get_post_procs_possible_inputs(self, cur_proc_ind):
+        if type(self.dep_vars) is list:
+            possible_inputs = self.dep_vars[:]
+        else:
+            possible_inputs = []
+        for prev_ind in range(cur_proc_ind):
+            prev_proc = self.cur_post_procs[prev_ind]
+            for cur_output in prev_proc['ArgsOutput']:
+                if not cur_output in possible_inputs:
+                    possible_inputs += [cur_output]
+        return possible_inputs
+    def _event_btn_post_proc_up(self):
+        cur_ind = self.get_listbox_sel_ind(self.win.lstbx_cur_post_procs)
+        if cur_ind == -1:   #i.e. empty - shouldn't happen as it should be safe as the listbox should be populated with a selected item; but just in case...
+            return
+        if cur_ind > 0 and cur_ind < len(self.cur_post_procs):  #Shouldn't fail as the button should be otherwise disabled (rather redundant check...)
+            cur_val = self.cur_post_procs.pop(cur_ind)
+            self.cur_post_procs.insert(cur_ind-1, cur_val)
+            self._post_procs_fill_current(cur_ind-1)
+    def _event_btn_post_proc_down(self):
+        cur_ind = self.get_listbox_sel_ind(self.win.lstbx_cur_post_procs)
+        if cur_ind == -1:   #i.e. empty - shouldn't happen as it should be safe as the listbox should be populated with a selected item; but just in case...
+            return
+        if cur_ind < len(self.cur_post_procs)-1:  #Shouldn't fail as the button should be otherwise disabled (rather redundant check...)
+            cur_val = self.cur_post_procs.pop(cur_ind)
+            self.cur_post_procs.insert(cur_ind+1, cur_val)
+            self._post_procs_fill_current(cur_ind+1)
+    def _event_btn_post_proc_delete(self):
+        cur_ind = self.get_listbox_sel_ind(self.win.lstbx_cur_post_procs)
+        if cur_ind == -1:   #i.e. empty - shouldn't happen as it should be safe as the listbox should be populated with a selected item; but just in case...
+            return
+        if cur_ind < len(self.cur_post_procs):  #Shouldn't fail as the button should be otherwise disabled (rather redundant check...)
+            self.cur_post_procs.pop(cur_ind)
+            self._post_procs_fill_current(cur_ind)    #Should at worst select the final output entry...
+    def _post_procs_disp_activate(self):
+        cur_proc_ind = self.get_listbox_sel_ind(self.win.lstbx_cur_post_procs)
+        if cur_proc_ind == -1:   #i.e. empty - shouldn't happen as it should be safe as the listbox should be populated with a selected item; but just in case...
+            return
+
+        #Clear all widgets
+        cur_layout = self.win.lyt_grd_frm_post_proc_details
+        cur_frame = self.win.frm_post_procs
+        for i in reversed(range(cur_layout.count())): 
+            cur_layout.itemAt(i).widget().setParent(None)
+        self.frm_proc_disp_children = []
+        
+        #If selecting the Final Output entry
+        row_off = 0
+        if cur_proc_ind == len(self.cur_post_procs):
+            lbl_procs = QtWidgets.QLabel(cur_frame)
+            lbl_procs.setText("Output dataset")
+            cur_layout.addWidget(lbl_procs, 0, 0, 1, 1)
+            #
+            cmbx_proc_output = QtWidgets.QComboBox(cur_frame)
+            cmbx_proc_output.currentIndexChanged.connect(partial(self._callback_cmbx_post_procs_disp_final_output_callback, cmbx_proc_output))
+            cur_layout.addWidget(cmbx_proc_output, 0, 1, 1, 1)
+            #
+            possible_inputs = self._get_post_procs_possible_inputs(cur_proc_ind)
+            sel_ind = 0
+            if len(possible_inputs) > 0 and self.cur_post_proc_output in possible_inputs:
+                sel_ind = possible_inputs.index(self.cur_post_proc_output)
+            cmbx_proc_output.addItems(possible_inputs)
+            cmbx_proc_output.setCurrentIndex(sel_ind)
+            #
+            self.frm_proc_disp_children += [lbl_procs, cmbx_proc_output]
+            return
+
+        #Selected a process in the post-processing chain
+        cur_proc = self.cur_post_procs[cur_proc_ind]
+        
+        row_off = 0
+        #
+        #Enable checkbox
+        lbl_procs = QtWidgets.QLabel(cur_frame)
+        lbl_procs.setText("Output dataset")
+        cur_layout.addWidget(lbl_procs, row_off, 0, 1, 1)
+        chkbx_enabled = QtWidgets.QCheckBox(cur_frame)
+        chkbx_enabled.setChecked(cur_proc['Enabled'])
+        chkbx_enabled.stateChanged.connect(partial(self._callback_chkbx_post_procs_disp_enabled, cur_proc_ind))
+        cur_layout.addWidget(chkbx_enabled, row_off, 1, 1, 1)
+        self.frm_proc_disp_children += [lbl_procs, chkbx_enabled]
+        row_off += 1
+        #
+        for ind, cur_arg in enumerate(cur_proc['ProcessObj'].get_input_args()):
+            lbl_procs = QtWidgets.QLabel(cur_frame)
+            lbl_procs.setText(cur_arg[0])
+            cur_layout.addWidget(lbl_procs, row_off, 0, 1, 1)
+            self.frm_proc_disp_children += [lbl_procs]
+            if cur_arg[1] == 'data':
+                cmbx_proc_output = QtWidgets.QComboBox(cur_frame)
+                cmbx_proc_output.currentIndexChanged.connect(partial(self._callback_cmbx_post_procs_disp_callback, cur_proc_ind, ind, cmbx_proc_output) )
+                cur_layout.addWidget(cmbx_proc_output, row_off, 1, 1, 1)
+                self.frm_proc_disp_children += [cmbx_proc_output]
+                #
+                possible_inputs = self._get_post_procs_possible_inputs(cur_proc_ind)
+                sel_ind = 0
+                if len(possible_inputs) > 0 and cur_proc['ArgsInput'][ind] in possible_inputs:
+                    sel_ind = possible_inputs.index(cur_proc['ArgsInput'][ind])
+                cmbx_proc_output.addItems(possible_inputs)
+                cmbx_proc_output.setCurrentIndex(sel_ind)
+            else:
+                #
+                # if cur_arg[1] == 'cursor':
+                #     cmbx_proc_output = ComboBoxEx(self.frm_proc_disp, "")
+                #     cmbx_proc_output.update_vals([x.Name for x in self.plot_main.AnalysisCursors if x.Type == cur_arg[2]])
+                #     cmbx_proc_output.Frame.grid(row=row_off, column=1)
+                #     self.frm_proc_disp_children.append(cmbx_proc_output.combobox)
+                # else:
+                tbx_proc_output = QtWidgets.QLineEdit(cur_frame)
+                cur_layout.addWidget(tbx_proc_output, row_off, 1, 1, 1)
+                tbx_proc_output.setText(str(cur_proc['ArgsInput'][ind]))
+                if cur_arg[1] == 'int':
+                    tbx_proc_output.setValidator(QtGui.QIntValidator())
+                    type_class = int
+                elif cur_arg[1] == 'float':
+                    tbx_proc_output.setValidator(QtGui.QDoubleValidator())
+                    type_class = float
+                else:
+                    type_class = str
+                tbx_proc_output.textChanged.connect(partial(self._callback_tbx_post_procs_disp_callback, cur_proc_ind, ind, type_class) )
+                self.frm_proc_disp_children += [tbx_proc_output]
+            #
+            row_off += 1
+        #
+        lbl_procs = QtWidgets.QLabel(cur_frame)
+        lbl_procs.setText("Outputs:")
+        cur_layout.addWidget(lbl_procs, row_off, 0, 1, 1)
+        self.frm_proc_disp_children += [lbl_procs]
+        row_off += 1
+        for ind, cur_arg in enumerate(cur_proc['ProcessObj'].get_output_args()):
+            lbl_procs = QtWidgets.QLabel(cur_frame)
+            lbl_procs.setText(cur_arg[0])
+            cur_layout.addWidget(lbl_procs, row_off, 0, 1, 1)
+            #
+            tbx_proc_output = QtWidgets.QLineEdit(cur_frame)
+            cur_layout.addWidget(tbx_proc_output, row_off, 1, 1, 1)
+            tbx_proc_output.setText(str(cur_proc['ArgsOutput'][ind]))
+            #These are data/variable names - thus, they require no validation as they are simply strings...
+            tbx_proc_output.textChanged.connect(partial(self._callback_tbx_post_procs_disp_outputs_callback, cur_proc_ind, ind) )
+            #
+            self.frm_proc_disp_children += [lbl_procs, tbx_proc_output]
+            row_off += 1
+    def _callback_cmbx_post_procs_disp_final_output_callback(self, cmbx, idx):
+        self.cur_post_proc_output = str(cmbx.currentText())
+        self.win.lstbx_cur_post_procs.item(len(self.cur_post_procs)).setText("Final Output: "+self.cur_post_proc_output)
+        return
+    def _callback_chkbx_post_procs_disp_enabled(self, sel_index, state):
+        self.cur_post_procs[sel_index]['Enabled'] = (state != QtCore.Qt.CheckState.Unchecked)
+        self.win.lstbx_cur_post_procs.item(sel_index).setText(self._post_procs_current_disp_text(self.cur_post_procs[sel_index]))
+    def _callback_cmbx_post_procs_disp_callback(self, sel_index, arg_index, cmbx, idx):
+        self.cur_post_procs[sel_index]['ArgsInput'][arg_index] = str(cmbx.currentText())
+        self.win.lstbx_cur_post_procs.item(sel_index).setText(self._post_procs_current_disp_text(self.cur_post_procs[sel_index]))
+    def _callback_tbx_post_procs_disp_callback(self, sel_index, arg_index, type_class, the_text):
+        #Failed cast (try-except is not working here?!)
+        if (type_class == int or type_class == float) and len(the_text) == 1 and (the_text == '-' or the_text == '+'):
+            return
+        self.cur_post_procs[sel_index]['ArgsInput'][arg_index] = type_class(the_text)
+        self.win.lstbx_cur_post_procs.item(sel_index).setText(self._post_procs_current_disp_text(self.cur_post_procs[sel_index]))
+    def _callback_tbx_post_procs_disp_outputs_callback(self, sel_index, arg_index, the_text):
+        self.cur_post_procs[sel_index]['ArgsOutput'][arg_index] = the_text
+        self.win.lstbx_cur_post_procs.item(sel_index).setText(self._post_procs_current_disp_text(self.cur_post_procs[sel_index]))
+        return True
 
 class UiLoader(QUiLoader):
     def createWidget(self, className, parent=None, name=""):
