@@ -1554,11 +1554,20 @@ class PlotFrame:
             self.ax.clear()
             self.ax_cB.clear()
 
+            #Check if points are uniformly spaced. Non-uniform spacing is penalised with slowness anyway...
+            if np.sum(np.diff(np.diff(self.curData[0]))) < 1e-15 and np.sum(np.diff(np.diff(self.curData[1]))) < 1e-15:
+                use_fast = True
+            else:
+                use_fast = False
+
             if self.hist_eq_enabled:
                 if self.hist_eq != None:
                     del self.hist_eq
                 self.hist_eq = HistEqNormalize(self.curData[2])
-                self.ax.pcolor(self.curData[0], self.curData[1], self.curData[2], norm=self.hist_eq, shading='nearest', cmap=self._cur_col_key.CMap)
+                # if use_fast:
+                #     self.ax.pcolorfast((self.curData[0][0], self.curData[0][-1]), (self.curData[1][0], self.curData[1][-1]), self.curData[2], norm=self.hist_eq, cmap=self._cur_col_key.CMap)
+                # else:
+                self.ax.pcolor(self.curData[0], self.curData[1], self.curData[2], norm=self.hist_eq, cmap=self._cur_col_key.CMap)
                 #Good reference: https://stackoverflow.com/questions/30608731/how-to-add-colorbar-to-a-histogram
                 if isinstance(self._cur_col_key.CMap, str):
                     cmap = matplotlib.pyplot.cm.get_cmap(self._cur_col_key.CMap)
@@ -1567,7 +1576,11 @@ class PlotFrame:
                 matplotlib.colorbar.ColorbarBase(self.ax_cB, cmap=cmap, norm=self.hist_eq, orientation='horizontal')
                 self.ax_cB.xaxis.set_ticks_position('top')
             else:
-                self.ax.pcolor(self.curData[0], self.curData[1], self.curData[2], shading='nearest', cmap=self._cur_col_key.CMap)
+                if use_fast:
+                    self.ax.pcolorfast((self.curData[0][0], self.curData[0][-1]), (self.curData[1][0], self.curData[1][-1]), self.curData[2], cmap=self._cur_col_key.CMap)
+                else:
+                    self.ax.pcolor(self.curData[0], self.curData[1], self.curData[2], shading='nearest', cmap=self._cur_col_key.CMap)
+
                 norm=matplotlib.colors.Normalize(vmin=np.nanmin(self.curData[2]), vmax=np.nanmax(self.curData[2]))
                 if isinstance(self._cur_col_key.CMap, str):
                     cmap = matplotlib.pyplot.cm.get_cmap(self._cur_col_key.CMap)
