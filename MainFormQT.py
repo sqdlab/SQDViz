@@ -9,10 +9,11 @@ from multiprocessing.pool import ThreadPool
 from DataExtractorH5single import DataExtractorH5single
 import time
 
+from Cursors.Cursor_Cross import Cursor_Cross
+
 class MainWindow:
-    def __init__(self, app, win, pltWidget):
-        self.graphWidget = pltWidget
-        # win.setCentralWidget(self.graphWidget)
+    def __init__(self, app, win, plot_layout_widget):
+        self.plot_layout_widget = plot_layout_widget
         self.win = win
         self.app = app
         self.data_extractor = None
@@ -21,7 +22,9 @@ class MainWindow:
         temperature = [30,32,34,32,33,31,29,32,35,45]
 
         # plot data: x, y values
-        self.data_line = self.graphWidget.plot(hour, temperature)
+        self.setup_axes(1)
+
+        self.data_line = self.plt_main.plot(hour, temperature)
         self.plot_type = 1
         self.data_img = None
 
@@ -43,6 +46,39 @@ class MainWindow:
 
         #Initial update time-stamp
         self.last_update_time = time.time()
+
+    def clear_plots(self):
+        self.plot_layout_widget.clear()
+        #
+        self.data_line = None
+        #
+        self.data_img = None
+        self.colBarItem = None
+        self.plt_curs_x = None
+        self.plt_curs_y = None
+
+    def setup_axes(self, plot_dim):
+        self.clear_plots()
+        if plot_dim == 1:
+            self.plt_main = self.plot_layout_widget.addPlot(row=0, col=0)
+            self.data_line = self.plt_main.plot([], [])
+        else:
+            self.plt_curs_x = self.plot_layout_widget.addPlot(row=0, col=0)
+            self.plt_main = self.plot_layout_widget.addPlot(row=1, col=0)
+            # self.plt_curs_y = self.plot_layout_widget.addPlot(row=0, col=0)
+            #
+            self.plt_curs_x.setXLink(self.plt_main)
+
+            self.data_img = pg.ImageItem()
+            self.plt_main.addItem( self.data_img )
+
+            self.cursor = Cursor_Cross()
+            self.plt_main.addItem(self.cursor)
+            
+            cm = pg.colormap.get('CET-L9') # prepare a linear color map
+            self.colBarItem = pg.ColorBarItem( values= (0, 1), colorMap=cm )
+            self.colBarItem.setImageItem( self.data_img, insert_in=self.plt_main )
+        self.plot_type = plot_dim
 
     def event_btn_OK(self):
         print('noice')
@@ -67,32 +103,34 @@ class MainWindow:
 
     def event_rbtn_plot_axis(self, value):
         if self.win.rbtn_plot_1D.isChecked():
-            self.plot_type = 1
+            self.setup_axes(1)
         else:
-            if self.plot_type == 1 and self.data_line != None:
-                self.graphWidget.removeItem(self.data_line)
-                self.data_line = None
-            if self.data_img == None:
-                self.data_img = pg.ImageItem()
-                self.graphWidget.addItem( self.data_img )
-            self.plot_type = 2
+            self.setup_axes(2)
 
     def update_plot_data(self):
         if self.data_extractor:
             if self.data_extractor.data_ready():
                 (indep_params, final_data, dict_rem_slices) = self.data_extractor.get_data()
                 cur_var_ind = self.dep_vars.index(self.win.cmbx_dep_var.currentText())
-                if self.plot_type == 1:
+                if self.plot_type == 1 and len(indep_params) == 1:
                     self.data_line.setData(indep_params[0], final_data[cur_var_ind])
-                else:
+                elif self.plot_type == 2 and len(indep_params) == 2:
                     x,y = indep_params[0], indep_params[1]
+                    dx = (x[-1]-x[0])/(x.size-1)
+                    dy = (y[-1]-y[0])/(y.size-1)
+                    xMin = x[0] - dx*0.5
+                    xMax = x[-1] + dx*0.5
+                    yMin = y[0] - dy*0.5
+                    yMax = y[-1] + dy*0.5
                     z_data = final_data[cur_var_ind]
                     self.data_img.setImage(z_data)
-                    self.data_img.setRect(QtCore.QRectF(x.min(), y.min(), x.max() - x.min(), y.max() - y.min()))
+                    self.data_img.setRect(QtCore.QRectF(xMin, yMin, xMax-xMin, yMax-yMin))
                     # cm = pg.colormap.get('CET-L9') # prepare a linear color map
                     # bar = pg.ColorBarItem( values= (0, 20_000), cmap=cm ) # prepare interactive color bar
-                    # # Have ColorBarItem control colors of img and appear in 'plot':
-                    # bar.setImageItem( img, insert_in=plot ) 
+                    # Have ColorBarItem control colors of img and appear in 'plot':
+                    # bar.setImageItem( self.data_img, insert_in=self.graphWidget )
+                    # self.graphWidget.addItem(bar)
+                    self.colBarItem.setLevels((z_data.min(), z_data.max()))
 
             #Setup new request if no new data is being fetched
             if not self.data_extractor.isFetching:
@@ -124,9 +162,9 @@ class MainWindow:
 
 class UiLoader(QUiLoader):
     def createWidget(self, className, parent=None, name=""):
-        if className == "PlotWidget":
-            self.plot_widget = pg.PlotWidget(parent=parent)
-            return self.plot_widget
+        if className == "GraphicsLayoutWidget":
+            self.plot_layout_widget = pg.GraphicsLayoutWidget(parent=parent)
+            return self.plot_layout_widget
         return super().createWidget(className, parent, name)
 
 def mainwindow_setup(w):
@@ -136,7 +174,7 @@ def main():
     loader = UiLoader()
     app = QtWidgets.QApplication(sys.argv)
     window = loader.load("main.ui", None)
-    main_win = MainWindow(app, window, loader.plot_widget)
+    main_win = MainWindow(app, window, loader.plot_layout_widget)
     window.show()
     app.exec()
 
