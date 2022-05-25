@@ -50,6 +50,12 @@ class MainWindow:
         self.post_procs_all = PostProcessors.get_all_post_processors()
         self.win.lstbx_plot_analy_funcs.addItems(self.post_procs_all.keys())
         self.win.lstbx_plot_analy_funcs.itemSelectionChanged.connect(self._event_lstbxPPfunction_changed)
+        self.win.btn_plot_anal_add_func.clicked.connect(self._event_btn_post_proc_add)
+        #Currently selected postprocessors
+        self.cur_post_procs = []
+        self.cur_post_proc_output = "dFinal"
+        #Setup current post-processing analysis ListBox and select the first entry (the final output entry)
+        self._post_procs_fill_current(0)
 
         #Initial update time-stamp
         self.last_update_time = time.time()
@@ -285,7 +291,66 @@ class MainWindow:
             return
         cur_func = sel_items[0].text()
         self.win.lbl_plot_analy_funcs.setText( "Description: " + self.post_procs_all[cur_func].get_description() )
+    def _event_btn_post_proc_add(self):
+        sel_items = self.win.lstbx_plot_analy_funcs.selectedItems()
+        if len(sel_items) == 0:   #i.e. empty - shouldn't happen as it should be safe as it's only populated once; but just in case...
+            return
+        cur_func = sel_items[0].text()
+        cur_func_obj = self.post_procs_all[cur_func]
+        self.cur_post_procs += [{
+            'ArgsInput'   : cur_func_obj.get_default_input_args(),
+            'ArgsOutput'  : cur_func_obj.get_default_output_args(),
+            'ProcessName' : cur_func,
+            'ProcessObj'  : cur_func_obj,
+            'Enabled'     : True
+        }]
+        self._post_procs_fill_current(len(self.cur_post_procs)-1)
+    def _post_procs_current_disp_text(self, cur_proc):
+        '''
+        Generates the string shown in each entry in the ListBox of current processes used in the post-processing.
 
+        Inputs:
+            cur_proc - Current process to be displayed. It is simply one of the tuples in the array self.cur_post_procs.
+        '''
+        #Filter to only show the data arguments
+        arr_args_in = []
+        for ind, cur_arg in enumerate(cur_proc['ProcessObj'].get_input_args()):
+            if cur_arg[1] == 'data':
+                arr_args_in += [cur_proc['ArgsInput'][ind]]
+        arr_args_in = tuple(arr_args_in)
+        #
+        arr_args_out = []
+        for ind, cur_arg in enumerate(cur_proc['ProcessObj'].get_output_args()):
+            if cur_arg[1] == 'data':
+                arr_args_out += [cur_proc['ArgsOutput'][ind]]
+        arr_args_out = tuple(arr_args_out)
+        #
+        #If all arguments are to be shown, comment the above and uncomment that below:
+        # arr_args_in = tuple(cur_proc['ArgsInput'])
+        # arr_args_out = tuple(cur_proc['ArgsOutput'])
+        #Note that it also has to be changed in callback functions like _callback_tbx_post_procs_disp_callback_Int etc...
+
+        if cur_proc['Enabled']:
+            cur_str = ""
+        else:
+            cur_str = "⊘"
+        cur_str += str(arr_args_in)
+        cur_str += "→"
+        cur_str += cur_proc['ProcessName']
+        cur_str += "→"
+        cur_str += str(arr_args_out)
+        return cur_str.replace('\'','')
+    def _post_procs_fill_current(self, sel_index = -1):
+        cur_proc_strs = []
+        for cur_proc in self.cur_post_procs:
+            cur_proc_strs += [self._post_procs_current_disp_text(cur_proc)]
+        cur_proc_strs += ["Final Output: "+self.cur_post_proc_output]
+
+        self.listbox_safe_clear(self.win.lstbx_cur_post_procs)
+        self.win.lstbx_cur_post_procs.addItems(cur_proc_strs)
+        if sel_index != -1:
+            cur_item = self.win.lstbx_cur_post_procs.item(sel_index)
+            self.win.lstbx_cur_post_procs.setCurrentItem(cur_item)
 
 class UiLoader(QUiLoader):
     def createWidget(self, className, parent=None, name=""):
