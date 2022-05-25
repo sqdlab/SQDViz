@@ -23,22 +23,25 @@ class Cursor_Cross(pg.GraphicsObject):
     sigChangedCurX = QtCore.Signal(object)
     sigChangedCurY = QtCore.Signal(object)
     
-    def __init__(self, plt_canvas, value=1, brush=None, pen=None, hoverBrush=None, hoverPen=None):        
+    def __init__(self, x, y, line_colour, brush=None, hoverBrush=None):        
         pg.GraphicsObject.__init__(self)
         self.blockLineSignal = False
         self.moving = False
         self.mouseHovering = False
 
         self._boundingRectCache = None
-        
+
+        penBase = pg.mkPen(line_colour)
+        h,s,v = penBase.color().hue(), penBase.color().saturation(), penBase.color().value()
+        invcol = [((h + 128) % 255)/255.0, s/255.0, v/255.0]
+        #
         lineKwds = dict(
             movable=True,
-            pen=pen,
-            hoverPen=hoverPen,
+            pen=penBase,
+            hoverPen=pg.mkPen(QtGui.QColor.fromHsvF(*invcol)),
         )
-            
-        self.lines = [pg.InfiniteLine(QtCore.QPointF(value, 0), angle=90, **lineKwds), pg.InfiniteLine(QtCore.QPointF(value, 0), angle=0, **lineKwds)]
-        
+        self.lines = [pg.InfiniteLine(QtCore.QPointF(x, 0), angle=90, **lineKwds), pg.InfiniteLine(QtCore.QPointF(0, y), angle=0, **lineKwds)]
+        #
         for l in self.lines:
             l.setParentItem(self)
             l.sigPositionChangeFinished.connect(self.lineMoveFinished)
@@ -55,8 +58,10 @@ class Cursor_Cross(pg.GraphicsObject):
             hoverBrush = fn.mkBrush(c)
         self.setHoverBrush(hoverBrush)
 
-        plt_canvas.scene().sigMouseMoved.connect(self.mouseMoved)
         self.setAcceptHoverEvents(True)
+
+    def connect_plt_to_move_event(self, plt_canvas):
+        plt_canvas.scene().sigMouseMoved.connect(self.mouseMoved)
 
     def mouseMoved(self,evt):
         pt_mouse = self.mapFromDevice(evt)
@@ -161,6 +166,9 @@ class Cursor_Cross(pg.GraphicsObject):
     
     def get_value(self):
         return (self.lines[0].value(), self.lines[1].value())
+    
+    def set_value(self, x, y):
+        return (self.lines[0].setValue(x), self.lines[1].setValue(y))
 
     def mouseClickEvent(self, ev):
         if self.moving and ev.button() == QtCore.Qt.MouseButton.RightButton:

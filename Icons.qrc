@@ -1,0 +1,12 @@
+<RCC>
+  <qresource prefix="IconPrefixes">
+    <file>Icons/ResetCursor.png</file>
+    <file>Icons/ConfigOpen.png</file>
+    <file>Icons/ConfigSave.png</file>
+    <file>Icons/GetAttr.png</file>
+    <file>Icons/OpenSQDToolzHDF5.png</file>
+    <file>Icons/OpenSQDToolzHDF5folder.png</file>
+    <file>Icons/OpenSQDToolzNextfolder.png</file>
+    <file>Icons/UpdatePlots.png</file>
+  </qresource>
+</RCC>

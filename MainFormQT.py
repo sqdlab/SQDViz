@@ -9,6 +9,7 @@ from multiprocessing.pool import ThreadPool
 from DataExtractorH5single import DataExtractorH5single
 import time
 import json
+import Icons
 
 from PostProcessors import*
 from functools import partial
@@ -51,6 +52,9 @@ class MainWindow:
         hour = [1,2,3,4,5,6,7,8,9,10]
         temperature = [30,32,34,32,33,31,29,32,35,45]
 
+        self.cursors = []   #Holds: (latest x value, latest y value, colour as a 3-vector RGB or character, Cursor_Cross object)
+        self.win.btn_cursor_add.clicked.connect(self._event_btn_cursor_add)
+        self.win.btn_cursor_del.clicked.connect(self._event_btn_cursor_del)
         # plot data: x, y values
         self.setup_axes(1)
 
@@ -65,7 +69,8 @@ class MainWindow:
         self.timer.timeout.connect(self.update_plot_data)
         self.timer.start()
 
-        win.btn_test.clicked.connect(self.event_btn_OK)
+        win.actionFopenH5.triggered.connect(self._event_btn_open_H5)
+        win.actionresetCursor.triggered.connect(self._event_btn_cursor_reset)
 
         #Plot Axis Radio Buttons
         self.win.rbtn_plot_1D.toggled.connect(self.event_rbtn_plot_axis)
@@ -118,70 +123,6 @@ class MainWindow:
         if self.colBarItem != None:
             self.colBarItem.setColorMap(self.colour_maps[self.win.cmbx_ckey.currentIndex()].CMap)
 
-    def clear_plots(self):
-        self.plot_layout_widget.clear()
-        #
-        self.data_line = None
-        #
-        self.data_img = None
-        self.colBarItem = None
-        self.plt_curs_x = None
-        self.plt_curs_y = None
-        self.data_curs_x = None
-        self.data_curs_y = None
-        self.plt_colhist = None
-        self.data_colhist = None
-        #
-        self.y_data = None
-
-    def setup_axes(self, plot_dim):
-        self.clear_plots()
-        if plot_dim == 1:
-            self.plt_main = self.plot_layout_widget.addPlot(row=0, col=0)
-            self.data_line = self.plt_main.plot([], [])
-        else:
-            self.plt_main = self.plot_layout_widget.addPlot(row=1, col=1)
-
-            self.plt_curs_x = self.plot_layout_widget.addPlot(row=0, col=1)
-            self.data_curs_x = self.plt_curs_x.plot([],[])
-            self.plt_curs_x.setXLink(self.plt_main) 
-
-            self.plt_curs_y = self.plot_layout_widget.addPlot(row=1, col=0)
-            self.data_curs_y = self.plt_curs_y.plot([],[])
-            self.plt_curs_y.showAxis('right')
-            self.plt_curs_y.hideAxis('left')
-            self.plt_curs_y.invertX(True)
-            self.plt_curs_y.setYLink(self.plt_main)
-
-            self.plt_colhist = self.plot_layout_widget.addPlot(row=0, col=0)
-            self.data_colhist = self.plt_colhist.plot([],[])      
-
-            self.data_img = pg.ImageItem()
-            self.plt_main.addItem( self.data_img )
-
-            self.cursor = Cursor_Cross(self.plt_main)
-            self.plt_main.addItem(self.cursor)
-            self.cursor.sigChangedCurX.connect(self.update_cursor_y)
-            self.cursor.sigChangedCurY.connect(self.update_cursor_x)
-            
-            cm = self.colour_maps[self.win.cmbx_ckey.currentIndex()].CMap
-            self.colBarItem = pg.ColorBarItem( values= (0, 1), colorMap=cm, orientation='horizontal' )
-            self.colBarItem.setImageItem( self.data_img, insert_in=self.plt_colhist )
-
-            self.plot_layout_widget.ci.layout.setRowStretchFactor(0, 1)
-            self.plot_layout_widget.ci.layout.setRowStretchFactor(1, 4)
-            self.plot_layout_widget.ci.layout.setColumnStretchFactor(0, 1)
-            self.plot_layout_widget.ci.layout.setColumnStretchFactor(1, 4)
-        self.plot_type = plot_dim
-
-    def event_btn_OK(self):
-        print('noice')
-        fileName = QtWidgets.QFileDialog.getOpenFileName(self.win, self.app.tr("Open HDF5 File"), "", self.app.tr("HDF5 Files (*.h5)"))
-        if fileName[0] != '':
-            self.data_thread_pool = ThreadPool(processes=1)
-            self.data_extractor = DataExtractorH5single(fileName[0], self.data_thread_pool)
-            self.init_ui()
-
     def trLst(self, lst):
         return [self.app.tr(x) for x in self.indep_vars]
 
@@ -201,21 +142,169 @@ class MainWindow:
         else:
             self.setup_axes(2)
 
-    def update_cursor_x(self):
-        if not isinstance(self.y_data, np.ndarray):
-            return
-        #Run the cursors
-        cur_x, cur_y = self.cursor.get_value()
-        ind = np.argmin(np.abs(cur_y - self.y_data))
-        self.data_curs_x.setData(self.x_data, self.z_data[:,ind])
+    def setup_axes(self, plot_dim):
+        #Clear plots
+        for m in range(len(self.cursors)):
+            del self.cursors[m][3]
+            self.cursors[m] += [None]
+        self.plot_layout_widget.clear()
+        #
+        self.data_line = None
+        #
+        self.plt_main = None
+        self.data_img = None
+        self.colBarItem = None
+        self.plt_curs_x = None
+        self.plt_curs_y = None
+        self.data_curs_x = []
+        self.data_curs_y = []
+        self.plt_colhist = None
+        self.data_colhist = None
+        #
+        self.y_data = None
 
-    def update_cursor_y(self):
+        if plot_dim == 1:
+            self.plt_main = self.plot_layout_widget.addPlot(row=0, col=0)
+            self.data_line = self.plt_main.plot([], [])
+        else:
+            self.plt_main = self.plot_layout_widget.addPlot(row=1, col=1)
+
+            self.plt_curs_x = self.plot_layout_widget.addPlot(row=0, col=1)
+            self.data_curs_x = [self.plt_curs_x.plot([],[],pen=pg.mkPen(self.cursors[x][2])) for x in range(len(self.cursors))]
+            self.plt_curs_x.setXLink(self.plt_main) 
+
+            self.plt_curs_y = self.plot_layout_widget.addPlot(row=1, col=0)
+            self.data_curs_y = [self.plt_curs_y.plot([],[],pen=pg.mkPen(self.cursors[x][2])) for x in range(len(self.cursors))]
+            self.plt_curs_y.showAxis('right')
+            self.plt_curs_y.hideAxis('left')
+            self.plt_curs_y.invertX(True)
+            self.plt_curs_y.setYLink(self.plt_main)
+
+            self.plt_colhist = self.plot_layout_widget.addPlot(row=0, col=0)
+            self.data_colhist = self.plt_colhist.plot([],[])      
+
+            self.data_img = pg.ImageItem()
+            self.plt_main.addItem( self.data_img )
+
+            self.update_all_cursors()
+            
+            cm = self.colour_maps[self.win.cmbx_ckey.currentIndex()].CMap
+            self.colBarItem = pg.ColorBarItem( values= (0, 1), colorMap=cm, orientation='horizontal' )
+            self.colBarItem.setImageItem( self.data_img, insert_in=self.plt_colhist )
+
+            self.plot_layout_widget.ci.layout.setRowStretchFactor(0, 1)
+            self.plot_layout_widget.ci.layout.setRowStretchFactor(1, 4)
+            self.plot_layout_widget.ci.layout.setColumnStretchFactor(0, 1)
+            self.plot_layout_widget.ci.layout.setColumnStretchFactor(1, 4)
+        self.plot_type = plot_dim
+
+    def update_cursor_x(self, curse_num, leCursor=None):
+        #Run the cursors
+        if self.cursors[curse_num][3] == None:
+            cur_x, cur_y = self.cursors[curse_num][:2]
+        else:
+            cur_x, cur_y = self.cursors[curse_num][3].get_value()
+        self.cursors[curse_num][1] = cur_y
+        self.update_lstbx_cursors()
+        if not isinstance(self.y_data, np.ndarray) or len(self.data_curs_x) <= curse_num:
+            return
+        ind = np.argmin(np.abs(cur_y - self.y_data))
+        self.data_curs_x[curse_num].setData(self.x_data, self.z_data[:,ind])
+    def update_cursor_y(self, curse_num, leCursor=None):
+        #Run the cursors
+        if self.cursors[curse_num][3] == None:
+            cur_x, cur_y = self.cursors[curse_num][:2]
+        else:
+            cur_x, cur_y = self.cursors[curse_num][3].get_value()
+        self.cursors[curse_num][0] = cur_x
+        self.update_lstbx_cursors()
+        if not isinstance(self.y_data, np.ndarray) or len(self.data_curs_x) <= curse_num:
+            return
+        ind = np.argmin(np.abs(cur_x - self.x_data))
+        self.data_curs_y[curse_num].setData(self.z_data[ind,:], self.y_data)
+    def update_all_cursors(self):
+        new_cursors = []
+        for m, cur_curse in enumerate(self.cursors):
+            new_cursor_obj = Cursor_Cross(cur_curse[0], cur_curse[1], cur_curse[2])  #clear() deletes the C++ object!
+            new_cursors += [[cur_curse[0], cur_curse[1], cur_curse[2], new_cursor_obj]]
+            new_cursor_obj.connect_plt_to_move_event(self.plt_main)
+            self.plt_main.addItem(new_cursor_obj)
+            new_cursor_obj.sigChangedCurX.connect(partial(self.update_cursor_y, m))
+            new_cursor_obj.sigChangedCurY.connect(partial(self.update_cursor_x, m))
+        self.cursors = new_cursors
+    def update_lstbx_cursors(self):
+        while self.win.lstbx_cursors.count() > len(self.cursors):
+            self.win.lstbx_cursors.takeItem(self.win.lstbx_cursors.count()-1)
+        while self.win.lstbx_cursors.count() < len(self.cursors):
+            self.win.lstbx_cursors.addItem('')
+        for m in range(len(self.cursors)):
+            cur_x, cur_y, col = self.cursors[m][:3]
+            self.win.lstbx_cursors.item(m).setText(f"X: {cur_x}, Y: {cur_y}")
+            self.win.lstbx_cursors.item(m).setForeground(QtGui.QBrush(pg.mkBrush(col)))
+
+    def _event_btn_cursor_add(self):
+        if self.plt_main != None:
+            xRng = self.plt_main.getAxis('bottom').range
+            yRng = self.plt_main.getAxis('left').range
+            x,y = 0.5*(xRng[0]+xRng[1]), 0.5*(yRng[0]+yRng[1])
+        else:
+            x,y = 0,0
+        #Find new colour
+        col = ''
+        col_pool = ['r', 'g', 'b', 'c', 'm', 'y', 'w']
+        cur_cols = [x[2] for x in self.cursors]
+        for cur_cand_col in col_pool:
+            if not cur_cand_col in cur_cols:
+                col = cur_cand_col
+                break
+        #Just pick random colour if all colours are already taken...
+        if col == '':
+            import random
+            col = col_pool[random.randint(0, len(col_pool)-1)]
+        if self.plt_main == None or self.plot_type == 1:
+            self.cursors += [[x,y, col, None]]
+        else:
+            obj = Cursor_Cross(x, y, col)
+            self.cursors += [[x,y, col, obj]]
+            obj.connect_plt_to_move_event(self.plt_main)
+            self.plt_main.addItem(obj)
+            self.data_curs_x += [self.plt_curs_x.plot([],[],pen=pg.mkPen(col))]
+            self.data_curs_y += [self.plt_curs_y.plot([],[],pen=pg.mkPen(col))]
+            m = len(self.cursors) - 1
+            obj.sigChangedCurX.connect(partial(self.update_cursor_y, m))
+            obj.sigChangedCurY.connect(partial(self.update_cursor_x, m))
+    def _event_btn_cursor_del(self):
+        sel_ind = self.get_listbox_sel_ind(self.win.lstbx_cursors)
+        if sel_ind == -1:
+            return
+        cur_curse = self.cursors.pop(sel_ind)
+        self.data_curs_x.pop(sel_ind).clear()
+        self.data_curs_y.pop(sel_ind).clear()
+        self.plt_main.removeItem(cur_curse[3])
+        del cur_curse[3]
+    def _event_btn_cursor_reset(self):
         if not isinstance(self.y_data, np.ndarray):
             return
-        #Run the cursors
-        cur_x, cur_y = self.cursor.get_value()
-        ind = np.argmin(np.abs(cur_x - self.x_data))
-        self.data_curs_y.setData(self.z_data[ind,:], self.y_data)
+        xMin = self.x_data.min()
+        xMax = self.x_data.max()
+        yMin = self.y_data.min()
+        yMax = self.y_data.max()
+        new_x = 0.5*(xMin+xMax)
+        new_y = 0.5*(yMin+yMax)
+        for m in range(len(self.cursors)):
+            cur_x, cur_y = self.cursors[m][:2]
+            if cur_x < xMin or cur_x > xMax:
+                x = new_x
+            else:
+                x = cur_x
+            if cur_y < yMin or cur_y > yMax:
+                y = new_y
+            else:
+                y = cur_y
+            if self.cursors[m][3] == None:
+                self.cursors[m][:2] = x, y
+            else:
+                self.cursors[m][3].set_value(x, y)
 
     def update_plot_data(self):
         if self.data_extractor:
@@ -294,6 +383,13 @@ class MainWindow:
             return -1
         else:
             return cur_ind[0]
+
+    def _event_btn_open_H5(self):
+        fileName = QtWidgets.QFileDialog.getOpenFileName(self.win, self.app.tr("Open HDF5 File"), "", self.app.tr("HDF5 Files (*.h5)"))
+        if fileName[0] != '':
+            self.data_thread_pool = ThreadPool(processes=1)
+            self.data_extractor = DataExtractorH5single(fileName[0], self.data_thread_pool)
+            self.init_ui()        
 
     def _slice_Var_disp_text(self, slice_var_name, cur_slice_var_params):
         '''
@@ -691,6 +787,10 @@ class MainWindow:
         zMin, zMax = self.z_data.min(), self.z_data.max()
         if np.abs(zMin - z_min) > 1e-12 or np.abs(zMax - z_max) > 1e-12:
             self.colBarItem.setLevels((zMin, zMax))
+        #
+        for m, cur_curse in enumerate(self.cursors):
+            self.update_cursor_x(m)
+            self.update_cursor_y(m)
 
 
 class UiLoader(QUiLoader):
