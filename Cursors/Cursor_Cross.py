@@ -71,6 +71,8 @@ class Cursor_Cross(pg.GraphicsObject):
     
     sigRegionChangeFinished = QtCore.Signal(object)
     sigRegionChanged = QtCore.Signal(object)
+    sigChangedCurX = QtCore.Signal(object)
+    sigChangedCurY = QtCore.Signal(object)
     Vertical = 0
     Horizontal = 1
     _orientation_axis = {
@@ -260,7 +262,10 @@ class Cursor_Cross(pg.GraphicsObject):
             return
         
         self.prepareGeometryChange()
-        self.sigRegionChanged.emit(self)
+        if i == 0:
+            self.sigChangedCurX.emit(self)
+        else:
+            self.sigChangedCurY.emit(self)
 
     def _line0Moved(self):
         self.lineMoved(0)
@@ -296,7 +301,10 @@ class Cursor_Cross(pg.GraphicsObject):
             self.sigRegionChangeFinished.emit(self)
         else:
             self.sigRegionChanged.emit(self)
-            
+    
+    def get_value(self):
+        return (self.lines[0].value(), self.lines[1].value())
+
     def mouseClickEvent(self, ev):
         if self.moving and ev.button() == QtCore.Qt.MouseButton.RightButton:
             ev.accept()

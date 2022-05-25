@@ -56,6 +56,10 @@ class MainWindow:
         self.colBarItem = None
         self.plt_curs_x = None
         self.plt_curs_y = None
+        self.data_curs_x = None
+        self.data_curs_y = None
+        #
+        self.y_data = None
 
     def setup_axes(self, plot_dim):
         self.clear_plots()
@@ -63,17 +67,26 @@ class MainWindow:
             self.plt_main = self.plot_layout_widget.addPlot(row=0, col=0)
             self.data_line = self.plt_main.plot([], [])
         else:
-            self.plt_curs_x = self.plot_layout_widget.addPlot(row=0, col=0)
-            self.plt_main = self.plot_layout_widget.addPlot(row=1, col=0)
-            # self.plt_curs_y = self.plot_layout_widget.addPlot(row=0, col=0)
-            #
+            self.plt_main = self.plot_layout_widget.addPlot(row=1, col=1)
+
+            self.plt_curs_x = self.plot_layout_widget.addPlot(row=0, col=1)
+            self.data_curs_x = self.plt_curs_x.plot([],[])
             self.plt_curs_x.setXLink(self.plt_main)
+
+            self.plt_curs_y = self.plot_layout_widget.addPlot(row=1, col=0)
+            self.data_curs_y = self.plt_curs_y.plot([],[])
+            self.plt_curs_y.showAxis('right')
+            self.plt_curs_y.hideAxis('left')
+            self.plt_curs_y.invertX(True)
+            self.plt_curs_y.setYLink(self.plt_main)
 
             self.data_img = pg.ImageItem()
             self.plt_main.addItem( self.data_img )
 
             self.cursor = Cursor_Cross()
             self.plt_main.addItem(self.cursor)
+            self.cursor.sigChangedCurX.connect(self.update_cursor_y)
+            self.cursor.sigChangedCurY.connect(self.update_cursor_x)
             
             cm = pg.colormap.get('CET-L9') # prepare a linear color map
             self.colBarItem = pg.ColorBarItem( values= (0, 1), colorMap=cm )
@@ -107,6 +120,22 @@ class MainWindow:
         else:
             self.setup_axes(2)
 
+    def update_cursor_x(self):
+        if not isinstance(self.y_data, np.ndarray):
+            return
+        #Run the cursors
+        cur_x, cur_y = self.cursor.get_value()
+        ind = np.argmin(np.abs(cur_y - self.y_data))
+        self.data_curs_x.setData(self.x_data, self.z_data[:,ind])
+
+    def update_cursor_y(self):
+        if not isinstance(self.y_data, np.ndarray):
+            return
+        #Run the cursors
+        cur_x, cur_y = self.cursor.get_value()
+        ind = np.argmin(np.abs(cur_x - self.x_data))
+        self.data_curs_y.setData(self.z_data[ind,:], self.y_data)
+
     def update_plot_data(self):
         if self.data_extractor:
             if self.data_extractor.data_ready():
@@ -115,6 +144,7 @@ class MainWindow:
                 if self.plot_type == 1 and len(indep_params) == 1:
                     self.data_line.setData(indep_params[0], final_data[cur_var_ind])
                 elif self.plot_type == 2 and len(indep_params) == 2:
+                    #Assuming a uniformly sampled axis, calculate bounds
                     x,y = indep_params[0], indep_params[1]
                     dx = (x[-1]-x[0])/(x.size-1)
                     dy = (y[-1]-y[0])/(y.size-1)
@@ -122,15 +152,14 @@ class MainWindow:
                     xMax = x[-1] + dx*0.5
                     yMin = y[0] - dy*0.5
                     yMax = y[-1] + dy*0.5
-                    z_data = final_data[cur_var_ind]
-                    self.data_img.setImage(z_data)
+                    #
+                    self.x_data = x
+                    self.y_data = y
+                    self.z_data = final_data[cur_var_ind]
+                    self.data_img.setImage(self.z_data)
                     self.data_img.setRect(QtCore.QRectF(xMin, yMin, xMax-xMin, yMax-yMin))
-                    # cm = pg.colormap.get('CET-L9') # prepare a linear color map
-                    # bar = pg.ColorBarItem( values= (0, 20_000), cmap=cm ) # prepare interactive color bar
-                    # Have ColorBarItem control colors of img and appear in 'plot':
-                    # bar.setImageItem( self.data_img, insert_in=self.graphWidget )
-                    # self.graphWidget.addItem(bar)
-                    self.colBarItem.setLevels((z_data.min(), z_data.max()))
+                    
+                    self.colBarItem.setLevels((self.z_data.min(), self.z_data.max()))
 
             #Setup new request if no new data is being fetched
             if not self.data_extractor.isFetching:
