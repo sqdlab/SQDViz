@@ -8,11 +8,38 @@ import numpy as np
 from multiprocessing.pool import ThreadPool
 from DataExtractorH5single import DataExtractorH5single
 import time
+import json
 
 from PostProcessors import*
 from functools import partial
 
 from Cursors.Cursor_Cross import Cursor_Cross
+
+class ColourMap:
+    def __init__(self):
+        pass
+
+    @classmethod
+    def fromMatplotlib(cls, cmap_name, display_name):
+        retObj = cls()
+        retObj._cmap = pg.colormap.getFromMatplotlib(cmap_name)
+        retObj._display_name = display_name
+        return retObj
+    
+    @classmethod
+    def fromCustom(cls, cm_data, display_name):
+        retObj = cls()
+        #Assuming uniformly sampled colour maps (i.e. not specifying pos)
+        retObj._cmap = pg.ColorMap(pos=None, color=cm_data)
+        retObj._display_name = display_name
+        return retObj
+    
+    @property
+    def Name(self):
+        return self._display_name
+    @property
+    def CMap(self):
+        return self._cmap
 
 class MainWindow:
     def __init__(self, app, win, plot_layout_widget):
@@ -66,10 +93,30 @@ class MainWindow:
         #Setup current post-processing analysis ListBox and select the first entry (the final output entry)
         self._post_procs_fill_current(0)
         
+        #Setup colour maps from Matplotlib
+        def_col_maps = [('viridis', "Viridis"), ('afmhot', "AFM Hot"), ('hot', "Hot"), ('gnuplot', "GNU-Plot"), ('coolwarm', "Cool-Warm"), ('seismic', "Seismic"), ('rainbow', "Rainbow")]
+        self.colour_maps = []
+        for cur_col_map in def_col_maps:
+            self.colour_maps.append(ColourMap.fromMatplotlib(cur_col_map[0], cur_col_map[1]))
+        #
+        file_path = 'ColourMaps/'
+        json_files = [pos_json for pos_json in os.listdir(file_path) if pos_json.endswith('.json')]
+        for cur_json_file in json_files:
+            with open(file_path + cur_json_file) as json_file:
+                data = json.load(json_file)
+                self.colour_maps.append(ColourMap.fromCustom(np.array(data)*255.0, cur_json_file[:-5]))   #Still specify colour maps from 0 to 1. PyQTgraph just requires it from 0-255
+        #Commit colour maps to ComboBox
+        self.win.cmbx_ckey.addItems([x.Name for x in self.colour_maps])
+        self.win.cmbx_ckey.currentIndexChanged.connect(partial(self._event_cmbx_key_changed) )
+
         self.analysis_cursors = []
 
         #Initial update time-stamp
         self.last_update_time = time.time()
+
+    def _event_cmbx_key_changed(self, idx):
+        if self.colBarItem != None:
+            self.colBarItem.setColorMap(self.colour_maps[self.win.cmbx_ckey.currentIndex()].CMap)
 
     def clear_plots(self):
         self.plot_layout_widget.clear()
@@ -112,7 +159,7 @@ class MainWindow:
             self.cursor.sigChangedCurX.connect(self.update_cursor_y)
             self.cursor.sigChangedCurY.connect(self.update_cursor_x)
             
-            cm = pg.colormap.get('CET-L9') # prepare a linear color map
+            cm = self.colour_maps[self.win.cmbx_ckey.currentIndex()].CMap
             self.colBarItem = pg.ColorBarItem( values= (0, 1), colorMap=cm )
             self.colBarItem.setImageItem( self.data_img, insert_in=self.plt_main )
         self.plot_type = plot_dim
@@ -530,16 +577,19 @@ class MainWindow:
         self.win.lstbx_cur_post_procs.item(sel_index).setText(self._post_procs_current_disp_text(self.cur_post_procs[sel_index]))
         return True
     
+    def write_statusbar(self, msg):
+        self.win.statusbar.showMessage(msg)
+
     def update_plot_post_proc(self, indep_params, dep_params):
         if len(self.cur_post_procs) == 0:
-            # self.lbl_procs_errors['text'] = f"Add functions to activate postprocessing."
+            self.write_statusbar(f"Add functions to activate postprocessing.")
             return False
 
         #Drop the update if there are non-1D commands enabled...
         if len(indep_params) == 1:
             for ind, cur_proc in enumerate(self.cur_post_procs):
                 if not cur_proc['ProcessObj'].supports_1D() and cur_proc['Enabled']:
-                    # self.lbl_procs_errors['text'] = f"A non-1D plot process has been enabled in step #{ind}."
+                    self.write_statusbar(f"A non-1D plot process has been enabled in step #{ind}.")
                     return False
 
         #Data declarations
@@ -565,7 +615,7 @@ class MainWindow:
                     if cur_args[ind] in data:
                         cur_args[ind] = data[cur_args[ind]]
                     else:
-                        # self.lbl_procs_errors['text'] = f"Dataset \'{cur_args[ind]}\' does not exist in step #{cur_proc_ind+1}"
+                        self.write_statusbar(f"Dataset \'{cur_args[ind]}\' does not exist in step #{cur_proc_ind+1}")
                         return False
                 elif cur_arg[1] == 'cursor':
                     the_cursor = None
@@ -582,7 +632,7 @@ class MainWindow:
                     if the_cursor != None:
                         cur_args[ind] = the_cursor
                     else:
-                        # self.lbl_procs_errors['text'] = f"Cursor \'{cur_args[ind]}\' is not a valid analysis cursor in step #{cur_proc_ind+1}"
+                        self.write_statusbar(f"Cursor \'{cur_args[ind]}\' is not a valid analysis cursor in step #{cur_proc_ind+1}")
                         return False
             #Execute command
             output_tuples = cur_proc['ProcessObj'](*cur_args)
@@ -594,11 +644,11 @@ class MainWindow:
         if self.cur_post_proc_output in data:
             cur_data = data[self.cur_post_proc_output]
         else:
-            # self.lbl_procs_errors['text'] = f"Dataset \'{self.cur_post_proc_output}\' does not exist"   #It's the final entry - if it doesn't exist yet, it doesn't exist...
+            self.write_statusbar(f"Dataset \'{self.cur_post_proc_output}\' does not exist")   #It's the final entry - if it doesn't exist yet, it doesn't exist...
             return False
 
         #No errors - so reset the message...
-        # self.lbl_procs_errors['text'] = ""
+        self.write_statusbar("")
 
         #Update plots
         if 'data' in cur_data:  #Occurs when the dataset is empty...
