@@ -74,9 +74,10 @@ class MainWindow:
 
         self.file_path = ""
         self.data_thread_pool = None
+        self.default_win_title = self.win.windowTitle()
         win.actionFopenH5.triggered.connect(self._event_btn_open_H5)
         win.actionFopenH5dir.triggered.connect(self._event_btn_open_H5dir)
-        win.actionFopenDat.triggered.connect(self._open_file_dat)
+        win.actionFopenDat.triggered.connect(self._event_btn_open_DAT)
         win.actionresetCursor.triggered.connect(self._event_btn_cursor_reset)
         win.actiongetFileAttributes.triggered.connect(self._event_btn_get_attrs)
         win.actiongetFileFigure.triggered.connect(self._event_btn_get_fig)
@@ -421,6 +422,8 @@ class MainWindow:
             if self.data_thread_pool == None:
                 self.data_thread_pool = ThreadPool(processes=1)
             self.data_extractor = DataExtractorH5single(fileName[0], self.data_thread_pool)
+            win_str = '/'.join(fileName[0].split('/')[-2:]) #Assuming that it'll always have one slash (e.g. drive letter itself)
+            self.win.setWindowTitle(f'{self.default_win_title} - HDF5-File: {win_str}')
             self.file_path = fileName[0]
             self.init_ui()
     def _event_btn_open_H5dir(self):
@@ -429,14 +432,18 @@ class MainWindow:
             if self.data_thread_pool == None:
                 self.data_thread_pool = ThreadPool(processes=1)
             self.data_extractor = DataExtractorH5multiple(fileName[0], self.data_thread_pool)
+            win_str = '/'.join(fileName[0].split('/')[-3:]) #Assuming that it'll always have one slash (e.g. drive letter itself)
+            self.win.setWindowTitle(f'{self.default_win_title} - HDF5-Directory: {win_str}')
             self.file_path = fileName[0]
             self.init_ui()
-    def _open_file_dat(self):
+    def _event_btn_open_DAT(self):
         fileName = QtWidgets.QFileDialog.getOpenFileName(self.win, self.app.tr("Open UQTools DAT File"), "", self.app.tr("UQTools DAT (*.dat)"))
         if fileName[0] != '':
             if self.data_thread_pool == None:
                 self.data_thread_pool = ThreadPool(processes=1)
             self.data_extractor = DataExtractorUQtoolsDAT(fileName[0], self.data_thread_pool)
+            win_str = '/'.join(fileName[0].split('/')[-2:]) #Assuming that it'll always have one slash (e.g. drive letter itself)
+            self.win.setWindowTitle(f'{self.default_win_title} - UQTools DAT-File: {win_str}')
             self.file_path = fileName[0]
             self.init_ui()
     def _open_file_prev(self):
