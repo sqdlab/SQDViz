@@ -11,7 +11,7 @@
    </rect>
   </property>
   <property name="windowTitle">
-   <string>MainWindow</string>
+   <string>SQDViz - Data visualisation tool</string>
   </property>
   <widget class="QWidget" name="centralwidget">
    <layout class="QVBoxLayout" name="verticalLayout">
@@ -157,6 +157,18 @@
                   <enum>QFrame::Raised</enum>
                  </property>
                  <layout class="QHBoxLayout" name="horizontalLayout_2">
+                  <property name="leftMargin">
+                   <number>0</number>
+                  </property>
+                  <property name="topMargin">
+                   <number>0</number>
+                  </property>
+                  <property name="rightMargin">
+                   <number>0</number>
+                  </property>
+                  <property name="bottomMargin">
+                   <number>0</number>
+                  </property>
                   <item>
                    <widget class="QPushButton" name="btn_cursor_add">
                     <property name="text">
@@ -186,8 +198,79 @@
                </sizepolicy>
               </property>
               <property name="title">
-               <string>GroupBox</string>
+               <string>Analysis Cursors</string>
               </property>
+              <layout class="QVBoxLayout" name="verticalLayout_5">
+               <property name="leftMargin">
+                <number>0</number>
+               </property>
+               <property name="topMargin">
+                <number>0</number>
+               </property>
+               <property name="rightMargin">
+                <number>0</number>
+               </property>
+               <property name="bottomMargin">
+                <number>0</number>
+               </property>
+               <item>
+                <widget class="QTableWidget" name="tableWidget"/>
+               </item>
+               <item>
+                <widget class="QFrame" name="frame_7">
+                 <property name="frameShape">
+                  <enum>QFrame::StyledPanel</enum>
+                 </property>
+                 <property name="frameShadow">
+                  <enum>QFrame::Raised</enum>
+                 </property>
+                 <layout class="QHBoxLayout" name="horizontalLayout_4">
+                  <property name="leftMargin">
+                   <number>0</number>
+                  </property>
+                  <property name="topMargin">
+                   <number>0</number>
+                  </property>
+                  <property name="rightMargin">
+                   <number>0</number>
+                  </property>
+                  <property name="bottomMargin">
+                   <number>0</number>
+                  </property>
+                  <item>
+                   <widget class="QComboBox" name="comboBox"/>
+                  </item>
+                  <item>
+                   <widget class="QPushButton" name="pushButton">
+                    <property name="text">
+                     <string>Add cursor</string>
+                    </property>
+                   </widget>
+                  </item>
+                  <item>
+                   <spacer name="horizontalSpacer">
+                    <property name="orientation">
+                     <enum>Qt::Horizontal</enum>
+                    </property>
+                    <property name="sizeHint" stdset="0">
+                     <size>
+                      <width>66</width>
+                      <height>20</height>
+                     </size>
+                    </property>
+                   </spacer>
+                  </item>
+                  <item>
+                   <widget class="QPushButton" name="pushButton_2">
+                    <property name="text">
+                     <string>Delete cursor</string>
+                    </property>
+                   </widget>
+                  </item>
+                 </layout>
+                </widget>
+               </item>
+              </layout>
              </widget>
             </item>
            </layout>
@@ -348,10 +431,66 @@
                </widget>
               </item>
               <item>
-               <widget class="QSlider" name="sldr_param_slices">
-                <property name="orientation">
-                 <enum>Qt::Horizontal</enum>
+               <widget class="QFrame" name="frame_6">
+                <property name="frameShape">
+                 <enum>QFrame::StyledPanel</enum>
                 </property>
+                <property name="frameShadow">
+                 <enum>QFrame::Raised</enum>
+                </property>
+                <layout class="QHBoxLayout" name="horizontalLayout_3">
+                 <property name="leftMargin">
+                  <number>0</number>
+                 </property>
+                 <property name="topMargin">
+                  <number>0</number>
+                 </property>
+                 <property name="rightMargin">
+                  <number>0</number>
+                 </property>
+                 <property name="bottomMargin">
+                  <number>0</number>
+                 </property>
+                 <item>
+                  <widget class="QSlider" name="sldr_param_slices">
+                   <property name="sizePolicy">
+                    <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+                     <horstretch>1</horstretch>
+                     <verstretch>0</verstretch>
+                    </sizepolicy>
+                   </property>
+                   <property name="orientation">
+                    <enum>Qt::Horizontal</enum>
+                   </property>
+                  </widget>
+                 </item>
+                 <item>
+                  <widget class="QPushButton" name="btn_slice_vars_val_dec">
+                   <property name="maximumSize">
+                    <size>
+                     <width>32</width>
+                     <height>16777215</height>
+                    </size>
+                   </property>
+                   <property name="text">
+                    <string>❰</string>
+                   </property>
+                  </widget>
+                 </item>
+                 <item>
+                  <widget class="QPushButton" name="btn_slice_vars_val_inc">
+                   <property name="maximumSize">
+                    <size>
+                     <width>32</width>
+                     <height>16777215</height>
+                    </size>
+                   </property>
+                   <property name="text">
+                    <string>❱</string>
+                   </property>
+                  </widget>
+                 </item>
+                </layout>
                </widget>
               </item>
              </layout>
@@ -548,6 +687,65 @@
                    </layout>
                   </widget>
                  </item>
+                 <item>
+                  <widget class="QFrame" name="frame_5">
+                   <property name="frameShape">
+                    <enum>QFrame::StyledPanel</enum>
+                   </property>
+                   <property name="frameShadow">
+                    <enum>QFrame::Raised</enum>
+                   </property>
+                   <layout class="QGridLayout" name="gridLayout_2">
+                    <property name="leftMargin">
+                     <number>0</number>
+                    </property>
+                    <property name="topMargin">
+                     <number>0</number>
+                    </property>
+                    <property name="rightMargin">
+                     <number>0</number>
+                    </property>
+                    <property name="bottomMargin">
+                     <number>0</number>
+                    </property>
+                    <item row="0" column="1">
+                     <widget class="QPushButton" name="btn_proc_list_open">
+                      <property name="text">
+                       <string/>
+                      </property>
+                      <property name="icon">
+                       <iconset resource="Icons.qrc">
+                        <normaloff>:/IconPrefixes/Icons/ConfigOpen.png</normaloff>:/IconPrefixes/Icons/ConfigOpen.png</iconset>
+                      </property>
+                     </widget>
+                    </item>
+                    <item row="0" column="0">
+                     <widget class="QComboBox" name="cmbx_proc_list_open">
+                      <property name="sizePolicy">
+                       <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+                        <horstretch>1</horstretch>
+                        <verstretch>0</verstretch>
+                       </sizepolicy>
+                      </property>
+                     </widget>
+                    </item>
+                    <item row="1" column="1">
+                     <widget class="QPushButton" name="btn_proc_list_save">
+                      <property name="text">
+                       <string/>
+                      </property>
+                      <property name="icon">
+                       <iconset>
+                        <normaloff>Icons/ConfigSave.png</normaloff>Icons/ConfigSave.png</iconset>
+                      </property>
+                     </widget>
+                    </item>
+                    <item row="1" column="0">
+                     <widget class="QLineEdit" name="tbx_proc_list_save"/>
+                    </item>
+                   </layout>
+                  </widget>
+                 </item>
                 </layout>
                </widget>
               </item>
@@ -604,8 +802,15 @@
     <bool>false</bool>
    </attribute>
    <addaction name="actionFopenH5"/>
+   <addaction name="actionFopenH5dir"/>
+   <addaction name="separator"/>
+   <addaction name="actiongotoFilePrev"/>
+   <addaction name="actiongotoFileNext"/>
    <addaction name="separator"/>
    <addaction name="actionresetCursor"/>
+   <addaction name="separator"/>
+   <addaction name="actiongetFileAttributes"/>
+   <addaction name="actiongetFileFigure"/>
   </widget>
   <action name="actionFopenH5">
    <property name="icon">
@@ -629,6 +834,66 @@
    </property>
    <property name="toolTip">
     <string>Reset cursors outside of data bounds</string>
+   </property>
+  </action>
+  <action name="actionFopenH5dir">
+   <property name="icon">
+    <iconset resource="Icons.qrc">
+     <normaloff>:/IconPrefixes/Icons/OpenSQDToolzHDF5folder.png</normaloff>:/IconPrefixes/Icons/OpenSQDToolzHDF5folder.png</iconset>
+   </property>
+   <property name="text">
+    <string>FopenH5dir</string>
+   </property>
+   <property name="toolTip">
+    <string>Open a grouped directory of SQDToolz HDF5 files</string>
+   </property>
+  </action>
+  <action name="actiongetFileAttributes">
+   <property name="icon">
+    <iconset resource="Icons.qrc">
+     <normaloff>:/IconPrefixes/Icons/GetAttr.png</normaloff>:/IconPrefixes/Icons/GetAttr.png</iconset>
+   </property>
+   <property name="text">
+    <string>getFileAttributes</string>
+   </property>
+   <property name="toolTip">
+    <string>Copy file attributes</string>
+   </property>
+  </action>
+  <action name="actiongetFileFigure">
+   <property name="icon">
+    <iconset resource="Icons.qrc">
+     <normaloff>:/IconPrefixes/Icons/GetFig.png</normaloff>:/IconPrefixes/Icons/GetFig.png</iconset>
+   </property>
+   <property name="text">
+    <string>getFileFigure</string>
+   </property>
+   <property name="toolTip">
+    <string>Copy figure</string>
+   </property>
+  </action>
+  <action name="actiongotoFileNext">
+   <property name="icon">
+    <iconset resource="Icons.qrc">
+     <normaloff>:/IconPrefixes/Icons/OpenSQDToolzNextfolder.png</normaloff>:/IconPrefixes/Icons/OpenSQDToolzNextfolder.png</iconset>
+   </property>
+   <property name="text">
+    <string>gotoFileNext</string>
+   </property>
+   <property name="toolTip">
+    <string>Move to next file</string>
+   </property>
+  </action>
+  <action name="actiongotoFilePrev">
+   <property name="icon">
+    <iconset resource="Icons.qrc">
+     <normaloff>:/IconPrefixes/Icons/OpenSQDToolzPrevfolder.png</normaloff>:/IconPrefixes/Icons/OpenSQDToolzPrevfolder.png</iconset>
+   </property>
+   <property name="text">
+    <string>gotoFilePrev</string>
+   </property>
+   <property name="toolTip">
+    <string>Move to previous file</string>
    </property>
   </action>
  </widget>

@@ -7,9 +7,11 @@ import os
 import numpy as np
 from multiprocessing.pool import ThreadPool
 from DataExtractorH5single import DataExtractorH5single
+from DataExtractorH5multiple import DataExtractorH5multiple
 import time
 import json
 import Icons
+import pyqtgraph.exporters as pgExp
 
 from PostProcessors import*
 from functools import partial
@@ -69,8 +71,15 @@ class MainWindow:
         self.timer.timeout.connect(self.update_plot_data)
         self.timer.start()
 
+        self.file_path = ""
+        self.data_thread_pool = None
         win.actionFopenH5.triggered.connect(self._event_btn_open_H5)
+        win.actionFopenH5dir.triggered.connect(self._event_btn_open_H5dir)
         win.actionresetCursor.triggered.connect(self._event_btn_cursor_reset)
+        win.actiongetFileAttributes.triggered.connect(self._event_btn_get_attrs)
+        win.actiongetFileFigure.triggered.connect(self._event_btn_get_fig)
+        win.actiongotoFilePrev.triggered.connect(self._open_file_prev)
+        win.actiongotoFileNext.triggered.connect(self._open_file_next)
 
         #Plot Axis Radio Buttons
         self.win.rbtn_plot_1D.toggled.connect(self.event_rbtn_plot_axis)
@@ -81,6 +90,8 @@ class MainWindow:
         self.cur_slice_var_keys_lstbx = []
         self.win.lstbx_param_slices.itemSelectionChanged.connect(self._event_slice_var_selection_changed)
         self.win.sldr_param_slices.valueChanged.connect(self._event_sldr_slice_vars_val_changed)
+        self.win.btn_slice_vars_val_inc.clicked.connect(self._event_btn_slice_vars_val_inc)
+        self.win.btn_slice_vars_val_dec.clicked.connect(self._event_btn_slice_vars_val_dec)
 
         #Setup available postprocessors
         self.post_procs_all = PostProcessors.get_all_post_processors()
@@ -97,6 +108,10 @@ class MainWindow:
         self.win.btn_proc_list_del.clicked.connect(self._event_btn_post_proc_delete)
         #Setup current post-processing analysis ListBox and select the first entry (the final output entry)
         self._post_procs_fill_current(0)
+
+        win.btn_proc_list_open.clicked.connect(self._event_btn_proc_list_open)
+        win.btn_proc_list_save.clicked.connect(self._event_btn_proc_list_save)
+        self._post_procs_update_configs_from_file()
         
         #Setup colour maps from Matplotlib
         def_col_maps = [('viridis', "Viridis"), ('afmhot', "AFM Hot"), ('hot', "Hot"), ('gnuplot', "GNU-Plot"), ('coolwarm', "Cool-Warm"), ('seismic', "Seismic"), ('rainbow', "Rainbow")]
@@ -241,6 +256,20 @@ class MainWindow:
             cur_x, cur_y, col = self.cursors[m][:3]
             self.win.lstbx_cursors.item(m).setText(f"X: {cur_x}, Y: {cur_y}")
             self.win.lstbx_cursors.item(m).setForeground(QtGui.QBrush(pg.mkBrush(col)))
+
+    def _event_btn_get_attrs(self):
+        clip_str = f"File: {self.file_path}\n"
+        cb = self.app.clipboard()
+        cb.clear(mode=cb.Clipboard )
+        cb.setText(clip_str, mode=cb.Clipboard)
+    def _event_btn_get_fig(self):
+        #Store figure as a temporary image
+        exptr = pgExp.ImageExporter( self.plot_layout_widget.scene() )
+        exptr.export('tempClipFig.png')
+        cb = self.app.clipboard()
+        cb.clear(mode=cb.Clipboard )
+        cb.setImage(QtGui.QImage('tempClipFig.png'))
+        os.remove('tempClipFig.png')
 
     def _event_btn_cursor_add(self):
         if self.plt_main != None:
@@ -387,9 +416,101 @@ class MainWindow:
     def _event_btn_open_H5(self):
         fileName = QtWidgets.QFileDialog.getOpenFileName(self.win, self.app.tr("Open HDF5 File"), "", self.app.tr("HDF5 Files (*.h5)"))
         if fileName[0] != '':
-            self.data_thread_pool = ThreadPool(processes=1)
+            if self.data_thread_pool == None:
+                self.data_thread_pool = ThreadPool(processes=1)
             self.data_extractor = DataExtractorH5single(fileName[0], self.data_thread_pool)
-            self.init_ui()        
+            self.file_path = fileName[0]
+            self.init_ui()
+    def _event_btn_open_H5dir(self):
+        fileName = QtWidgets.QFileDialog.getOpenFileName(self.win, self.app.tr("Open HDF5 File"), "", self.app.tr("HDF5 Files (*.h5)"))
+        if fileName[0] != '':
+            if self.data_thread_pool == None:
+                self.data_thread_pool = ThreadPool(processes=1)
+            self.data_extractor = DataExtractorH5multiple(fileName[0], self.data_thread_pool)
+            self.file_path = fileName[0]
+            self.init_ui()
+    def _open_file_prev(self):
+        if not isinstance(self.data_extractor, DataExtractorH5single):
+            return
+        cur_file = self.data_extractor.file_name
+        cur_exp_dir = os.path.dirname(cur_file)
+        cur_parent_dir = os.path.dirname(cur_exp_dir) + '/'  #Should exist...
+        #
+        dirs = [x[0] for x in os.walk(cur_parent_dir)]
+        cur_ind = dirs.index(cur_exp_dir)
+        cur_ind = cur_ind - 1
+        filename = ''
+        while cur_ind > 0:  #Presuming that the first directory is the base path...
+            cur_file = dirs[cur_ind]+'/data.h5'
+            if os.path.exists(cur_file):
+                filename = cur_file
+                break
+            cur_ind = cur_ind - 1
+        if filename == '':
+            return
+        if self.data_thread_pool == None:
+            self.data_thread_pool = ThreadPool(processes=1)
+        self.data_extractor = DataExtractorH5single(filename, self.data_thread_pool)
+        self.file_path = filename
+        self.init_ui()
+    def _open_file_next(self):
+        if not isinstance(self.data_extractor, DataExtractorH5single):
+            return
+        cur_file = self.data_extractor.file_name
+        cur_exp_dir = os.path.dirname(cur_file)
+        cur_parent_dir = os.path.dirname(cur_exp_dir) + '/'  #Should exist...
+        #
+        dirs = [x[0] for x in os.walk(cur_parent_dir)]
+        cur_ind = dirs.index(cur_exp_dir)
+        cur_ind = cur_ind + 1
+        filename = ''
+        while cur_ind < len(dirs):
+            cur_file = dirs[cur_ind]+'/data.h5'
+            if os.path.exists(cur_file):
+                filename = cur_file
+                break
+            cur_ind = cur_ind + 1
+        if filename == '':
+            return
+        if self.data_thread_pool == None:
+            self.data_thread_pool = ThreadPool(processes=1)
+        self.data_extractor = DataExtractorH5single(filename, self.data_thread_pool)
+        self.file_path = filename
+        self.init_ui()
+
+    def _post_procs_update_configs_from_file(self):
+        #Create file if it does not exist...
+        if not os.path.isfile('config_post_procs.json'):
+            with open('config_post_procs.json', 'w') as outfile:
+                json.dump({}, outfile, indent=4)
+                self._avail_post_proc_configs = {}
+                self.listbox_safe_clear(self.win.cmbx_proc_list_open)
+            return
+        #
+        with open('config_post_procs.json', 'r') as outfile:
+            self._avail_post_proc_configs = json.load(outfile)
+        self.win.cmbx_proc_list_open.clear()
+        self.win.cmbx_proc_list_open.addItems(self._avail_post_proc_configs.keys())
+    def _event_btn_proc_list_open(self):
+        cur_file = str(self.win.cmbx_proc_list_open.currentText())
+        if cur_file == '':
+            return
+        #Transfer the configuration (gathered from the file earlier) into the current list of post-processors
+        self.cur_post_procs = self._avail_post_proc_configs[cur_file]
+        #Create the post-processor objects appropriately
+        for cur_proc in self.cur_post_procs:
+            cur_proc['ProcessObj'] = self.post_procs_all[cur_proc['ProcessName']]
+        #Select the last post-processor to display...
+        self._post_procs_fill_current(len(self.cur_post_procs)-1)
+    def _event_btn_proc_list_save(self):
+        self._post_procs_update_configs_from_file()
+        cur_name = self.win.tbx_proc_list_save.text()
+        if cur_name == "":
+            return
+        self._avail_post_proc_configs[cur_name] = self.cur_post_procs
+        with open('config_post_procs.json', 'w') as outfile:
+            json.dump(self._avail_post_proc_configs, outfile, indent=4, default=lambda o: '<not serializable>')
+        self._post_procs_update_configs_from_file()
 
     def _slice_Var_disp_text(self, slice_var_name, cur_slice_var_params):
         '''
@@ -433,6 +554,22 @@ class MainWindow:
             item.setText(self._slice_Var_disp_text(cur_var_name, self.dict_var_slices[cur_var_name]))
             #Update Label
             self._update_label_slice_var_val(cur_sel_ind)
+    def _event_btn_slice_vars_val_inc(self):
+        cur_sel_ind = self.get_listbox_sel_ind(self.win.lstbx_param_slices)
+        if cur_sel_ind == -1:
+            return
+        cur_var_name = self.cur_slice_var_keys_lstbx[cur_sel_ind]
+        cur_len = self.dict_var_slices[cur_var_name][1].size
+        cur_ind = int(float(self.win.sldr_param_slices.value()))
+        if cur_ind + 1 < cur_len:
+            self.win.sldr_param_slices.setValue(cur_ind + 1)
+    def _event_btn_slice_vars_val_dec(self):
+        cur_sel_ind = self.get_listbox_sel_ind(self.win.lstbx_param_slices)
+        if cur_sel_ind == -1:
+            return
+        cur_ind = int(float(self.win.sldr_param_slices.value()))
+        if cur_ind > 0:
+            self.win.sldr_param_slices.setValue(cur_ind - 1)
 
     
     def _event_lstbxPPfunction_changed(self):
