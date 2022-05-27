@@ -1,5 +1,6 @@
 <RCC>
   <qresource prefix="IconPrefixes">
+    <file>Icons/OpenSQDToolzDAT.png</file>
     <file>Icons/OpenSQDToolzPrevfolder.png</file>
     <file>Icons/GetFig.png</file>
     <file>Icons/ResetCursor.png</file>

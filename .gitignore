@@ -7,4 +7,4 @@ azure-dark.tcl
 azure-dark/
 config_post_procs.json
 tempClipFig.png
-:qt_for_python/
+.qt_for_python/

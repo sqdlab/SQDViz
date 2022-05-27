@@ -8,6 +8,7 @@ import numpy as np
 from multiprocessing.pool import ThreadPool
 from DataExtractorH5single import DataExtractorH5single
 from DataExtractorH5multiple import DataExtractorH5multiple
+from DataExtractorUQtoolsDAT import DataExtractorUQtoolsDAT
 import time
 import json
 import Icons
@@ -75,6 +76,7 @@ class MainWindow:
         self.data_thread_pool = None
         win.actionFopenH5.triggered.connect(self._event_btn_open_H5)
         win.actionFopenH5dir.triggered.connect(self._event_btn_open_H5dir)
+        win.actionFopenDat.triggered.connect(self._open_file_dat)
         win.actionresetCursor.triggered.connect(self._event_btn_cursor_reset)
         win.actiongetFileAttributes.triggered.connect(self._event_btn_get_attrs)
         win.actiongetFileFigure.triggered.connect(self._event_btn_get_fig)
@@ -343,7 +345,7 @@ class MainWindow:
                 if not self.update_plot_post_proc(indep_params, final_data):
                     #Not post-processed (hence not plotted) - so do so now...
                     if self.plot_type == 1 and len(indep_params) == 1:
-                        self.data_line.setData(indep_params[0], final_data[cur_var_ind])
+                        self.plot_1D(indep_params[0], final_data[cur_var_ind], self.win.cmbx_dep_var.currentText())
                     elif self.plot_type == 2 and len(indep_params) == 2:
                         self.plot_2D(indep_params[0], indep_params[1], final_data[cur_var_ind])
                 #   
@@ -427,6 +429,14 @@ class MainWindow:
             if self.data_thread_pool == None:
                 self.data_thread_pool = ThreadPool(processes=1)
             self.data_extractor = DataExtractorH5multiple(fileName[0], self.data_thread_pool)
+            self.file_path = fileName[0]
+            self.init_ui()
+    def _open_file_dat(self):
+        fileName = QtWidgets.QFileDialog.getOpenFileName(self.win, self.app.tr("Open UQTools DAT File"), "", self.app.tr("UQTools DAT (*.dat)"))
+        if fileName[0] != '':
+            if self.data_thread_pool == None:
+                self.data_thread_pool = ThreadPool(processes=1)
+            self.data_extractor = DataExtractorUQtoolsDAT(fileName[0], self.data_thread_pool)
             self.file_path = fileName[0]
             self.init_ui()
     def _open_file_prev(self):
@@ -898,9 +908,14 @@ class MainWindow:
             if 'y' in cur_data:
                 self.plot_2D(cur_data['x'], cur_data['y'], cur_data['data'].T)
             else:
-                self.data_line.setData(cur_data['x'], cur_data['data'])
+                self.plot_1D(cur_data['x'], cur_data['data'], self.cur_post_proc_output)
         return True
     
+    def plot_1D(self, x, y, yLabel):
+        self.data_line.setData(x, y)
+        self.plt_main.getAxis('bottom').setLabel(str(self.win.cmbx_axis_x.currentText()))
+        self.plt_main.getAxis('left').setLabel(yLabel)        
+
     def plot_2D(self, x, y, z):
         dx = (x[-1]-x[0])/(x.size-1)
         dy = (y[-1]-y[0])/(y.size-1)
@@ -916,6 +931,7 @@ class MainWindow:
         self.data_img.setRect(QtCore.QRectF(xMin, yMin, xMax-xMin, yMax-yMin))
         #
         zData = self.z_data.flatten()
+        zData = zData[~np.isnan(zData)]
         hist_vals, bin_edges = np.histogram(zData, bins=int(zData.size*0.01), density=True)
         centres = 0.5*(bin_edges[1:]+bin_edges[:-1])
         self.data_colhist.setData(centres, hist_vals)
@@ -928,6 +944,9 @@ class MainWindow:
         for m, cur_curse in enumerate(self.cursors):
             self.update_cursor_x(m)
             self.update_cursor_y(m)
+        #
+        self.plt_main.getAxis('bottom').setLabel(str(self.win.cmbx_axis_x.currentText()))
+        self.plt_main.getAxis('left').setLabel(str(self.win.cmbx_axis_y.currentText()))
 
 
 class UiLoader(QUiLoader):

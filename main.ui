@@ -803,6 +803,7 @@
    </attribute>
    <addaction name="actionFopenH5"/>
    <addaction name="actionFopenH5dir"/>
+   <addaction name="actionFopenDat"/>
    <addaction name="separator"/>
    <addaction name="actiongotoFilePrev"/>
    <addaction name="actiongotoFileNext"/>
@@ -894,6 +895,18 @@
    </property>
    <property name="toolTip">
     <string>Move to previous file</string>
+   </property>
+  </action>
+  <action name="actionFopenDat">
+   <property name="icon">
+    <iconset resource="Icons.qrc">
+     <normaloff>:/IconPrefixes/Icons/OpenSQDToolzDAT.png</normaloff>:/IconPrefixes/Icons/OpenSQDToolzDAT.png</iconset>
+   </property>
+   <property name="text">
+    <string>FopenDat</string>
+   </property>
+   <property name="toolTip">
+    <string>Open UQToolz DAT file</string>
    </property>
   </action>
  </widget>
