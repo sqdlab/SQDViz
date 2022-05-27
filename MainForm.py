@@ -22,9 +22,9 @@ from multiprocessing.pool import ThreadPool
 
 from numpy.lib.arraysetops import isin
 
-from DataExtractorH5single import*
-from DataExtractorH5multiple import*
-from DataExtractorUQtoolsDAT import*
+from DataExtractors.DataExtractorH5single import*
+from DataExtractors.DataExtractorH5multiple import*
+from DataExtractors.DataExtractorUQtoolsDAT import*
 
 from PostProcessors import*
 from Analysis_Cursors import*
@@ -388,7 +388,7 @@ class MainForm:
         self.cmbx_anal_cursors.update_vals(self.possible_cursors.keys())
         self._update_analy_cursor_table_widths = False
 
-        self.data_thread_pool = ThreadPool(processes=1)
+        self.data_thread_pool = ThreadPool(processes=2)
         self.reset_ui()
 
         #Setup update rates
@@ -1027,7 +1027,7 @@ class MainForm:
     def _open_sqdtoolz_hdf5(self, file_path):
         self.file_path = file_path
         #Setup data extraction
-        self.data_thread_pool = ThreadPool(processes=1)
+        self.data_thread_pool = ThreadPool(processes=2)
         self.data_extractor = DataExtractorH5single(file_path, self.data_thread_pool)
         self.init_ui()
 
@@ -1047,7 +1047,7 @@ class MainForm:
     def _open_sqdtoolz_hdf5folders(self, file_path):
         self.file_path = file_path
         #Setup data extraction
-        self.data_thread_pool = ThreadPool(processes=1)
+        self.data_thread_pool = ThreadPool(processes=2)
         self.data_extractor = DataExtractorH5multiple(file_path, self.data_thread_pool)
         self.init_ui()
 
@@ -1067,7 +1067,7 @@ class MainForm:
     def _open_uqtools_dat(self, file_path):
         self.file_path = file_path
         #Setup data extraction
-        self.data_thread_pool = ThreadPool(processes=1)
+        self.data_thread_pool = ThreadPool(processes=2)
         self.data_extractor = DataExtractorUQtoolsDAT(file_path, self.data_thread_pool)
         self.init_ui()
 

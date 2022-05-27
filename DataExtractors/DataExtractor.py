@@ -22,6 +22,10 @@ class DataExtractor:
         ret_val = self.async_result.get()
         self.async_result = None
         return ret_val
+    
+    def close_file(self):
+        return
+        raise NotImplementedError()
 
     def _get_current_data(self, params):
         raise NotImplementedError()

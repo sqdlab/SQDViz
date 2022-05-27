@@ -1,4 +1,4 @@
-from DataExtractor import DataExtractor
+from DataExtractors.DataExtractor import DataExtractor
 import csv
 import numpy as np
 import time

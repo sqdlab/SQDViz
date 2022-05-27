@@ -6,9 +6,9 @@ import sys  # We need sys so that we can pass argv to QApplication
 import os
 import numpy as np
 from multiprocessing.pool import ThreadPool
-from DataExtractorH5single import DataExtractorH5single
-from DataExtractorH5multiple import DataExtractorH5multiple
-from DataExtractorUQtoolsDAT import DataExtractorUQtoolsDAT
+from DataExtractors.DataExtractorH5single import DataExtractorH5single
+from DataExtractors.DataExtractorH5multiple import DataExtractorH5multiple
+from DataExtractors.DataExtractorUQtoolsDAT import DataExtractorUQtoolsDAT
 import time
 import json
 import Icons
@@ -144,15 +144,33 @@ class MainWindow:
     def trLst(self, lst):
         return [self.app.tr(x) for x in self.indep_vars]
 
-    def init_ui(self):
+    def setup_plot_vars(self):
         self.indep_vars = self.data_extractor.get_independent_vars()
-        self.win.cmbx_axis_x.clear()
-        self.win.cmbx_axis_x.addItems(self.indep_vars)
-        self.win.cmbx_axis_y.clear()
-        self.win.cmbx_axis_y.addItems(self.indep_vars)
+        if self.indep_vars != [self.win.cmbx_axis_x.itemText(x) for x in range(self.win.cmbx_axis_x.count())]:
+            cur_sel = self.win.cmbx_axis_x.currentText()
+            cur_sel_ind = 0
+            if self.win.cmbx_axis_x.currentText() != '' and cur_sel in self.indep_vars:
+                cur_sel_ind = self.indep_vars.index(cur_sel)
+            self.win.cmbx_axis_x.clear()
+            self.win.cmbx_axis_x.addItems(self.indep_vars)
+            self.win.cmbx_axis_x.setCurrentIndex(cur_sel_ind)
+            #
+            cur_sel = self.win.cmbx_axis_y.currentText()
+            cur_sel_ind = 0
+            if self.win.cmbx_axis_y.currentText() != '' and cur_sel in self.indep_vars:
+                cur_sel_ind = self.indep_vars.index(cur_sel)
+            self.win.cmbx_axis_y.clear()
+            self.win.cmbx_axis_y.addItems(self.indep_vars)
+            self.win.cmbx_axis_y.setCurrentIndex(cur_sel_ind)
         self.dep_vars = self.data_extractor.get_dependent_vars()
-        self.win.cmbx_dep_var.clear()
-        self.win.cmbx_dep_var.addItems(self.dep_vars)
+        if self.dep_vars != [self.win.cmbx_dep_var.itemText(x) for x in range(self.win.cmbx_dep_var.count())]:
+            cur_sel = self.win.cmbx_dep_var.currentText()
+            cur_sel_ind = 0
+            if self.win.cmbx_dep_var.currentText() != '' and cur_sel in self.dep_vars:
+                cur_sel_ind = self.dep_vars.index(cur_sel)
+            self.win.cmbx_dep_var.clear()
+            self.win.cmbx_dep_var.addItems(self.dep_vars)
+            self.win.cmbx_dep_var.setCurrentIndex(cur_sel_ind)
 
     def event_rbtn_plot_axis(self, value):
         if self.win.rbtn_plot_1D.isChecked():
@@ -340,6 +358,7 @@ class MainWindow:
 
     def update_plot_data(self):
         if self.data_extractor:
+            self.setup_plot_vars()  #Mostly relevant for the directory version which may get more variables with time...
             if self.data_extractor.data_ready():
                 (indep_params, final_data, dict_rem_slices) = self.data_extractor.get_data()
                 cur_var_ind = self.dep_vars.index(self.win.cmbx_dep_var.currentText())
@@ -416,36 +435,39 @@ class MainWindow:
         else:
             return cur_ind[0]
 
+    def _reset_thrds_and_files(self):
+        if self.data_thread_pool == None:
+            self.data_thread_pool = ThreadPool(processes=2)
+        if self.data_extractor != None:
+            self.data_extractor.close_file()
+            self.data_thread_pool = ThreadPool(processes=2)
     def _event_btn_open_H5(self):
         fileName = QtWidgets.QFileDialog.getOpenFileName(self.win, self.app.tr("Open HDF5 File"), "", self.app.tr("HDF5 Files (*.h5)"))
         if fileName[0] != '':
-            if self.data_thread_pool == None:
-                self.data_thread_pool = ThreadPool(processes=1)
+            self._reset_thrds_and_files()
             self.data_extractor = DataExtractorH5single(fileName[0], self.data_thread_pool)
             win_str = '/'.join(fileName[0].split('/')[-2:]) #Assuming that it'll always have one slash (e.g. drive letter itself)
             self.win.setWindowTitle(f'{self.default_win_title} - HDF5-File: {win_str}')
             self.file_path = fileName[0]
-            self.init_ui()
+            self.setup_plot_vars()
     def _event_btn_open_H5dir(self):
         fileName = QtWidgets.QFileDialog.getOpenFileName(self.win, self.app.tr("Open HDF5 File"), "", self.app.tr("HDF5 Files (*.h5)"))
         if fileName[0] != '':
-            if self.data_thread_pool == None:
-                self.data_thread_pool = ThreadPool(processes=1)
+            self._reset_thrds_and_files()
             self.data_extractor = DataExtractorH5multiple(fileName[0], self.data_thread_pool)
             win_str = '/'.join(fileName[0].split('/')[-3:]) #Assuming that it'll always have one slash (e.g. drive letter itself)
             self.win.setWindowTitle(f'{self.default_win_title} - HDF5-Directory: {win_str}')
             self.file_path = fileName[0]
-            self.init_ui()
+            self.setup_plot_vars()
     def _event_btn_open_DAT(self):
         fileName = QtWidgets.QFileDialog.getOpenFileName(self.win, self.app.tr("Open UQTools DAT File"), "", self.app.tr("UQTools DAT (*.dat)"))
         if fileName[0] != '':
-            if self.data_thread_pool == None:
-                self.data_thread_pool = ThreadPool(processes=1)
+            self._reset_thrds_and_files()
             self.data_extractor = DataExtractorUQtoolsDAT(fileName[0], self.data_thread_pool)
             win_str = '/'.join(fileName[0].split('/')[-2:]) #Assuming that it'll always have one slash (e.g. drive letter itself)
             self.win.setWindowTitle(f'{self.default_win_title} - UQTools DAT-File: {win_str}')
             self.file_path = fileName[0]
-            self.init_ui()
+            self.setup_plot_vars()
     def _open_file_prev(self):
         if not isinstance(self.data_extractor, DataExtractorH5single):
             return
@@ -465,11 +487,10 @@ class MainWindow:
             cur_ind = cur_ind - 1
         if filename == '':
             return
-        if self.data_thread_pool == None:
-            self.data_thread_pool = ThreadPool(processes=1)
+        self._reset_thrds_and_files()
         self.data_extractor = DataExtractorH5single(filename, self.data_thread_pool)
         self.file_path = filename
-        self.init_ui()
+        self.setup_plot_vars()
     def _open_file_next(self):
         if not isinstance(self.data_extractor, DataExtractorH5single):
             return
@@ -489,11 +510,10 @@ class MainWindow:
             cur_ind = cur_ind + 1
         if filename == '':
             return
-        if self.data_thread_pool == None:
-            self.data_thread_pool = ThreadPool(processes=1)
+        self._reset_thrds_and_files()
         self.data_extractor = DataExtractorH5single(filename, self.data_thread_pool)
         self.file_path = filename
-        self.init_ui()
+        self.setup_plot_vars()
 
     def _post_procs_update_configs_from_file(self):
         #Create file if it does not exist...
@@ -939,7 +959,7 @@ class MainWindow:
         #
         zData = self.z_data.flatten()
         zData = zData[~np.isnan(zData)]
-        hist_vals, bin_edges = np.histogram(zData, bins=int(zData.size*0.01), density=True)
+        hist_vals, bin_edges = np.histogram(zData, bins=max(int(zData.size*0.01),3), density=True)
         centres = 0.5*(bin_edges[1:]+bin_edges[:-1])
         self.data_colhist.setData(centres, hist_vals)
         #
