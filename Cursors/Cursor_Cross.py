@@ -63,6 +63,10 @@ class Cursor_Cross(pg.GraphicsObject):
     def connect_plt_to_move_event(self, plt_canvas):
         plt_canvas.scene().sigMouseMoved.connect(self.mouseMoved)
 
+    def release_from_plots(self):
+        self.sigChangedCurX.disconnect()
+        self.sigChangedCurY.disconnect()
+
     def mouseMoved(self,evt):
         pt_mouse = self.mapFromDevice(evt)
         rect_centre = self.boundingRect()

@@ -18,6 +18,7 @@ from PostProcessors import*
 from functools import partial
 
 from Cursors.Cursor_Cross import Cursor_Cross
+from Cursors.Analy_Cursors import*
 
 class ColourMap:
     def __init__(self):
@@ -55,6 +56,7 @@ class MainWindow:
         hour = [1,2,3,4,5,6,7,8,9,10]
         temperature = [30,32,34,32,33,31,29,32,35,45]
 
+        self.analysis_cursors = []
         self.cursors = []   #Holds: (latest x value, latest y value, colour as a 3-vector RGB or character, Cursor_Cross object)
         self.win.btn_cursor_add.clicked.connect(self._event_btn_cursor_add)
         self.win.btn_cursor_del.clicked.connect(self._event_btn_cursor_del)
@@ -132,7 +134,22 @@ class MainWindow:
         self.win.cmbx_ckey.addItems([x.Name for x in self.colour_maps])
         self.win.cmbx_ckey.currentIndexChanged.connect(partial(self._event_cmbx_key_changed) )
 
-        self.analysis_cursors = []
+        #Setup analysis cursors
+        #Setup a dictionary which maps the cursor name to the cursor class...
+        self.possible_cursors = Analy_Cursor.get_all_analysis_cursors()
+        self.win.cmbx_anal_cursors.addItems(self.possible_cursors.keys())
+        self.win.btn_analy_cursor_add.clicked.connect(self._event_btn_anal_cursor_add)
+        self.win.btn_analy_cursor_del.clicked.connect(self._event_btn_anal_cursor_del)
+        #
+        self.win.tbl_analy_cursors.setColumnCount(4)
+        self.win.tbl_analy_cursors.setHorizontalHeaderLabels(["Show", "Name", "Type", "Value"])
+        headerView = self.win.tbl_analy_cursors.horizontalHeader()
+        headerView.setSectionResizeMode(0, QtWidgets.QHeaderView.ResizeToContents)
+        headerView.setSectionResizeMode(1, QtWidgets.QHeaderView.ResizeToContents)
+        headerView.setSectionResizeMode(2, QtWidgets.QHeaderView.ResizeToContents)
+        headerView.setSectionResizeMode(3, QtWidgets.QHeaderView.Stretch)
+        self._anal_cursor_add_block_event = False
+        self.win.tbl_analy_cursors.itemChanged.connect(self._event_chkbx_anal_cursor_show)
 
         #Initial update time-stamp
         self.last_update_time = time.time()
@@ -181,8 +198,12 @@ class MainWindow:
     def setup_axes(self, plot_dim):
         #Clear plots
         for m in range(len(self.cursors)):
-            del self.cursors[m][3]
-            self.cursors[m] += [None]
+            if self.cursors[m][3] != None:
+                self.cursors[m][3].release_from_plots()
+                del self.cursors[m][3]
+                self.cursors[m] += [None]
+        for cur_anal_curse in self.analysis_cursors:
+            cur_anal_curse.release_from_plots()
         self.plot_layout_widget.clear()
         #
         self.data_line = None
@@ -202,6 +223,7 @@ class MainWindow:
         if plot_dim == 1:
             self.plt_main = self.plot_layout_widget.addPlot(row=0, col=0)
             self.data_line = self.plt_main.plot([], [])
+            self.update_all_anal_cursors()
         else:
             self.plt_main = self.plot_layout_widget.addPlot(row=1, col=1)
 
@@ -223,6 +245,7 @@ class MainWindow:
             self.plt_main.addItem( self.data_img )
 
             self.update_all_cursors()
+            self.update_all_anal_cursors()
             
             cm = self.colour_maps[self.win.cmbx_ckey.currentIndex()].CMap
             self.colBarItem = pg.ColorBarItem( values= (0, 1), colorMap=cm, orientation='horizontal' )
@@ -233,6 +256,19 @@ class MainWindow:
             self.plot_layout_widget.ci.layout.setColumnStretchFactor(0, 1)
             self.plot_layout_widget.ci.layout.setColumnStretchFactor(1, 4)
         self.plot_type = plot_dim
+
+    def find_new_colour(self, used_colours):
+        col = ''
+        col_pool = ['r', 'g', 'b', 'c', 'm', 'y', 'w']
+        for cur_cand_col in col_pool:
+            if not cur_cand_col in used_colours:
+                col = cur_cand_col
+                break
+        #Just pick random colour if all colours are already taken...
+        if col == '':
+            import random
+            col = col_pool[random.randint(0, len(col_pool)-1)]
+        return col
 
     def update_cursor_x(self, curse_num, leCursor=None):
         #Run the cursors
@@ -277,21 +313,6 @@ class MainWindow:
             cur_x, cur_y, col = self.cursors[m][:3]
             self.win.lstbx_cursors.item(m).setText(f"X: {cur_x}, Y: {cur_y}")
             self.win.lstbx_cursors.item(m).setForeground(QtGui.QBrush(pg.mkBrush(col)))
-
-    def _event_btn_get_attrs(self):
-        clip_str = f"File: {self.file_path}\n"
-        cb = self.app.clipboard()
-        cb.clear(mode=cb.Clipboard )
-        cb.setText(clip_str, mode=cb.Clipboard)
-    def _event_btn_get_fig(self):
-        #Store figure as a temporary image
-        exptr = pgExp.ImageExporter( self.plot_layout_widget.scene() )
-        exptr.export('tempClipFig.png')
-        cb = self.app.clipboard()
-        cb.clear(mode=cb.Clipboard )
-        cb.setImage(QtGui.QImage('tempClipFig.png'))
-        os.remove('tempClipFig.png')
-
     def _event_btn_cursor_add(self):
         if self.plt_main != None:
             xRng = self.plt_main.getAxis('bottom').range
@@ -300,17 +321,8 @@ class MainWindow:
         else:
             x,y = 0,0
         #Find new colour
-        col = ''
-        col_pool = ['r', 'g', 'b', 'c', 'm', 'y', 'w']
-        cur_cols = [x[2] for x in self.cursors]
-        for cur_cand_col in col_pool:
-            if not cur_cand_col in cur_cols:
-                col = cur_cand_col
-                break
-        #Just pick random colour if all colours are already taken...
-        if col == '':
-            import random
-            col = col_pool[random.randint(0, len(col_pool)-1)]
+        col = self.find_new_colour([x[2] for x in self.cursors])
+        #
         if self.plt_main == None or self.plot_type == 1:
             self.cursors += [[x,y, col, None]]
         else:
@@ -355,6 +367,102 @@ class MainWindow:
                 self.cursors[m][:2] = x, y
             else:
                 self.cursors[m][3].set_value(x, y)
+
+    def update_all_anal_cursors(self):
+        for cur_curse in self.analysis_cursors:
+            cur_curse.init_cursor(self.plt_main)
+    def _event_btn_anal_cursor_add(self):
+        cur_sel = self.win.cmbx_anal_cursors.currentText()
+        #
+        #Find previous names
+        prev_names = []
+        for cur_curse in self.analysis_cursors:
+            if cur_curse.Type == cur_sel:
+                prev_names += [cur_curse.Name]
+        #Choose new name
+        new_prefix = self.possible_cursors[cur_sel].Prefix
+        m = 0
+        while f'{new_prefix}{m}' in prev_names:
+            m += 1
+        new_name = f'{new_prefix}{m}'
+        #
+        #Find new colour
+        col = self.find_new_colour([x.Colour for x in self.analysis_cursors])
+        #
+        new_anal_curse = self.possible_cursors[cur_sel](new_name, col, self._event_anal_cursor_changed)
+        self.analysis_cursors += [new_anal_curse]
+        new_anal_curse.Visible = True   #Set initial default to show cursor...
+        #
+        #Add to the table
+        cur_table = self.win.tbl_analy_cursors
+        num_prev_items = cur_table.rowCount()
+        cur_table.setRowCount(num_prev_items+1)
+        textcol = pg.mkPen(col)
+        textcol = QtGui.QColor(textcol.color().red(), textcol.color().green(), textcol.color().blue(), 255)
+        #
+        self._anal_cursor_add_block_event = True
+        item = QtWidgets.QTableWidgetItem()
+        item.setFlags(QtCore.Qt.ItemIsUserCheckable | QtCore.Qt.ItemIsEnabled)
+        if new_anal_curse.Visible:
+            item.setCheckState(QtCore.Qt.Checked)
+        else:
+            item.setCheckState(QtCore.Qt.Unchecked)
+        item.setTextAlignment(QtCore.Qt.AlignHCenter)   #TODO: Fix this - it doesn't work as it inserts text next to the check-box...
+        cur_table.setItem(num_prev_items,0,item)
+        item = QtWidgets.QTableWidgetItem(new_anal_curse.Name)
+        item.setFlags(item.flags() ^ QtCore.Qt.ItemIsEditable)
+        item.setForeground(textcol)
+        cur_table.setItem(num_prev_items,1,item)
+        item = QtWidgets.QTableWidgetItem(new_anal_curse.Type)
+        item.setFlags(item.flags() ^ QtCore.Qt.ItemIsEditable)
+        item.setForeground(textcol)
+        cur_table.setItem(num_prev_items,2,item)
+        item = QtWidgets.QTableWidgetItem(new_anal_curse.Summary)
+        item.setFlags(item.flags() ^ QtCore.Qt.ItemIsEditable)
+        item.setForeground(textcol)
+        cur_table.setItem(num_prev_items,3,item)
+        self._anal_cursor_add_block_event = False
+        #
+        #Link to plot if applicable
+        if self.plt_main:
+            new_anal_curse.init_cursor(self.plt_main)
+    def _event_btn_anal_cursor_del(self):
+        cur_row = self.win.tbl_analy_cursors.currentRow()
+        if cur_row < 0: #It actually returns -1!!!
+            return
+        del_name = self.win.tbl_analy_cursors.item(cur_row,1).text()
+        self.win.tbl_analy_cursors.removeRow(cur_row)
+        #Assuming list and table are concurrent!!!
+        found_curse = self.analysis_cursors.pop(cur_row)
+        found_curse.release_from_plots()
+        if self.plt_main:
+            self.plt_main.removeItem(found_curse)
+        del found_curse
+        
+
+    def _event_chkbx_anal_cursor_show(self, item):
+        if self._anal_cursor_add_block_event or item.column() != 0:
+            return
+        self.analysis_cursors[item.row()].Visible = item.checkState() == QtCore.Qt.CheckState.Checked
+    def _event_anal_cursor_changed(self, anal_cursor):
+        for cur_row in range(self.win.tbl_analy_cursors.rowCount()):
+            if anal_cursor.Name == self.win.tbl_analy_cursors.item(cur_row,1).text():
+                self.win.tbl_analy_cursors.item(cur_row,3).setText(anal_cursor.Summary)
+                return
+
+    def _event_btn_get_attrs(self):
+        clip_str = f"File: {self.file_path}\n"
+        cb = self.app.clipboard()
+        cb.clear(mode=cb.Clipboard )
+        cb.setText(clip_str, mode=cb.Clipboard)
+    def _event_btn_get_fig(self):
+        #Store figure as a temporary image
+        exptr = pgExp.ImageExporter( self.plot_layout_widget.scene() )
+        exptr.export('tempClipFig.png')
+        cb = self.app.clipboard()
+        cb.clear(mode=cb.Clipboard )
+        cb.setImage(QtGui.QImage('tempClipFig.png'))
+        os.remove('tempClipFig.png')
 
     def update_plot_data(self):
         if self.data_extractor:
@@ -939,6 +1047,8 @@ class MainWindow:
         return True
     
     def plot_1D(self, x, y, yLabel):
+        if self.data_line == None:
+            return
         self.data_line.setData(x, y)
         self.plt_main.getAxis('bottom').setLabel(str(self.win.cmbx_axis_x.currentText()))
         self.plt_main.getAxis('left').setLabel(yLabel)        
