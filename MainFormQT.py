@@ -134,6 +134,18 @@ class MainWindow:
         self.win.cmbx_ckey.addItems([x.Name for x in self.colour_maps])
         self.win.cmbx_ckey.currentIndexChanged.connect(partial(self._event_cmbx_key_changed) )
 
+        #Hide the differential cursors...
+        self.win.tbl_cursor_diffs.setVisible(False)
+        self.win.tbl_cursor_diffs.setColumnCount(6)
+        self.win.tbl_cursor_diffs.setHorizontalHeaderLabels(["", "", "Δx", "Δy", "1/Δx", "1/Δy"])
+        headerView = self.win.tbl_cursor_diffs.horizontalHeader()
+        headerView.setSectionResizeMode(0, QtWidgets.QHeaderView.ResizeToContents)
+        headerView.setSectionResizeMode(1, QtWidgets.QHeaderView.ResizeToContents)
+        headerView.setSectionResizeMode(2, QtWidgets.QHeaderView.ResizeToContents)
+        headerView.setSectionResizeMode(3, QtWidgets.QHeaderView.ResizeToContents)
+        headerView.setSectionResizeMode(4, QtWidgets.QHeaderView.ResizeToContents)
+        headerView.setSectionResizeMode(5, QtWidgets.QHeaderView.ResizeToContents)
+
         #Setup analysis cursors
         #Setup a dictionary which maps the cursor name to the cursor class...
         self.possible_cursors = Analy_Cursor.get_all_analysis_cursors()
@@ -270,6 +282,9 @@ class MainWindow:
             import random
             col = col_pool[random.randint(0, len(col_pool)-1)]
         return col
+    def get_text_colour(self, col):
+        textcol = pg.mkPen(col)
+        return QtGui.QColor(textcol.color().red(), textcol.color().green(), textcol.color().blue(), 255)
 
     def update_cursor_x(self, curse_num, leCursor=None):
         #Run the cursors
@@ -314,6 +329,57 @@ class MainWindow:
             cur_x, cur_y, col = self.cursors[m][:3]
             self.win.lstbx_cursors.item(m).setText(f"X: {cur_x}, Y: {cur_y}")
             self.win.lstbx_cursors.item(m).setForeground(QtGui.QBrush(pg.mkBrush(col)))
+        #Update differential cursors
+        if len(self.cursors) > 1:
+            self.win.tbl_cursor_diffs.setVisible(True)
+
+            #Generate combinations to show
+            show_combs = []
+            for m in range(len(self.cursors)-1):
+                for n in range(m+1,len(self.cursors)):
+                    show_combs += [(m,n)]
+
+            #Add differences to the table
+            cur_table = self.win.tbl_cursor_diffs
+            cur_table.setRowCount(len(show_combs))
+            for m, cur_comb in enumerate(show_combs):
+                textcol = self.get_text_colour(self.cursors[cur_comb[0]][2])
+                item = QtWidgets.QTableWidgetItem('■'); item.setTextAlignment(QtCore.Qt.AlignHCenter | QtCore.Qt.AlignVCenter)
+                item.setFlags(item.flags() ^ QtCore.Qt.ItemIsEditable)
+                item.setForeground(textcol)
+                cur_table.setItem(m,0,item)
+                #
+                textcol = self.get_text_colour(self.cursors[cur_comb[1]][2])
+                item = QtWidgets.QTableWidgetItem('■'); item.setTextAlignment(QtCore.Qt.AlignHCenter | QtCore.Qt.AlignVCenter)
+                item.setFlags(item.flags() ^ QtCore.Qt.ItemIsEditable)
+                item.setForeground(textcol)
+                cur_table.setItem(m,1,item)
+                #
+                dx = self.cursors[cur_comb[0]][0]-self.cursors[cur_comb[1]][0]
+                item = QtWidgets.QTableWidgetItem(f'{dx}')
+                item.setFlags(item.flags() ^ QtCore.Qt.ItemIsEditable)
+                cur_table.setItem(m,2,item)
+                #
+                dy = self.cursors[cur_comb[0]][1]-self.cursors[cur_comb[1]][1]
+                item = QtWidgets.QTableWidgetItem(f'{dy}')
+                item.setFlags(item.flags() ^ QtCore.Qt.ItemIsEditable)
+                cur_table.setItem(m,3,item)
+                #
+                if abs(dx) > 0:
+                    item = QtWidgets.QTableWidgetItem(f'{1/dx}')
+                else:
+                    item = QtWidgets.QTableWidgetItem(f'N/A')
+                item.setFlags(item.flags() ^ QtCore.Qt.ItemIsEditable)
+                cur_table.setItem(m,4,item)
+                #
+                if abs(dy) > 0:
+                    item = QtWidgets.QTableWidgetItem(f'{1/dy}')
+                else:
+                    item = QtWidgets.QTableWidgetItem(f'N/A')
+                item.setFlags(item.flags() ^ QtCore.Qt.ItemIsEditable)
+                cur_table.setItem(m,5,item)
+        else:
+            self.win.tbl_cursor_diffs.setVisible(False)
     def _event_btn_cursor_add(self):
         if self.plt_main != None:
             xRng = self.plt_main.getAxis('bottom').range
@@ -334,9 +400,9 @@ class MainWindow:
             if self.plot_type == 2:
                 self.data_curs_x += [self.plt_curs_x.plot([],[],pen=pg.mkPen(col))]
                 self.data_curs_y += [self.plt_curs_y.plot([],[],pen=pg.mkPen(col))]
-                m = len(self.cursors) - 1
-                obj.sigChangedCurX.connect(partial(self.update_cursor_y, m))
-                obj.sigChangedCurY.connect(partial(self.update_cursor_x, m))
+            m = len(self.cursors) - 1
+            obj.sigChangedCurX.connect(partial(self.update_cursor_y, m))
+            obj.sigChangedCurY.connect(partial(self.update_cursor_x, m))
         self.update_lstbx_cursors()
     def _event_btn_cursor_del(self):
         sel_ind = self.get_listbox_sel_ind(self.win.lstbx_cursors)
@@ -350,7 +416,7 @@ class MainWindow:
         del cur_curse[3]
         self.update_lstbx_cursors()
     def _event_btn_cursor_reset(self):
-        if not isinstance(self.x_data, np.ndarray) and not isinstance(self.y_data, np.ndarray):
+        if not isinstance(self.x_data, np.ndarray) or not isinstance(self.y_data, np.ndarray):
             return
         xMin = self.x_data.min()
         xMax = self.x_data.max()
@@ -402,8 +468,7 @@ class MainWindow:
         cur_table = self.win.tbl_analy_cursors
         num_prev_items = cur_table.rowCount()
         cur_table.setRowCount(num_prev_items+1)
-        textcol = pg.mkPen(col)
-        textcol = QtGui.QColor(textcol.color().red(), textcol.color().green(), textcol.color().blue(), 255)
+        textcol = self.get_text_colour(col)
         #
         self._anal_cursor_add_block_event = True
         item = QtWidgets.QTableWidgetItem()
@@ -881,7 +946,7 @@ class MainWindow:
         #
         #Enable checkbox
         lbl_procs = QtWidgets.QLabel(cur_frame)
-        lbl_procs.setText("Output dataset")
+        lbl_procs.setText("Enabled")
         cur_layout.addWidget(lbl_procs, row_off, 0, 1, 1)
         chkbx_enabled = QtWidgets.QCheckBox(cur_frame)
         chkbx_enabled.setChecked(cur_proc['Enabled'])
