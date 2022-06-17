@@ -69,6 +69,8 @@ class Cursor_Cross(pg.GraphicsObject):
 
     def mouseMoved(self,evt):
         pt_mouse = self.mapFromDevice(evt)
+        if pt_mouse == None:
+            return
         rect_centre = self.boundingRect()
         pt_inside_centre = rect_centre.contains(pt_mouse)
         for l in self.lines:

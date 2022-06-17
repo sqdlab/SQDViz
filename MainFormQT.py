@@ -199,7 +199,7 @@ class MainWindow:
         #Clear plots
         for m in range(len(self.cursors)):
             if self.cursors[m][3] != None:
-                self.cursors[m][3].release_from_plots()
+                # self.cursors[m][3].release_from_plots()
                 del self.cursors[m][3]
                 self.cursors[m] += [None]
         for cur_anal_curse in self.analysis_cursors:
@@ -223,6 +223,7 @@ class MainWindow:
         if plot_dim == 1:
             self.plt_main = self.plot_layout_widget.addPlot(row=0, col=0)
             self.data_line = self.plt_main.plot([], [])
+            self.update_all_cursors()
             self.update_all_anal_cursors()
         else:
             self.plt_main = self.plot_layout_widget.addPlot(row=1, col=1)
@@ -323,29 +324,33 @@ class MainWindow:
         #Find new colour
         col = self.find_new_colour([x[2] for x in self.cursors])
         #
-        if self.plt_main == None or self.plot_type == 1:
+        if self.plt_main == None:
             self.cursors += [[x,y, col, None]]
         else:
             obj = Cursor_Cross(x, y, col)
             self.cursors += [[x,y, col, obj]]
             obj.connect_plt_to_move_event(self.plt_main)
             self.plt_main.addItem(obj)
-            self.data_curs_x += [self.plt_curs_x.plot([],[],pen=pg.mkPen(col))]
-            self.data_curs_y += [self.plt_curs_y.plot([],[],pen=pg.mkPen(col))]
-            m = len(self.cursors) - 1
-            obj.sigChangedCurX.connect(partial(self.update_cursor_y, m))
-            obj.sigChangedCurY.connect(partial(self.update_cursor_x, m))
+            if self.plot_type == 2:
+                self.data_curs_x += [self.plt_curs_x.plot([],[],pen=pg.mkPen(col))]
+                self.data_curs_y += [self.plt_curs_y.plot([],[],pen=pg.mkPen(col))]
+                m = len(self.cursors) - 1
+                obj.sigChangedCurX.connect(partial(self.update_cursor_y, m))
+                obj.sigChangedCurY.connect(partial(self.update_cursor_x, m))
+        self.update_lstbx_cursors()
     def _event_btn_cursor_del(self):
         sel_ind = self.get_listbox_sel_ind(self.win.lstbx_cursors)
         if sel_ind == -1:
             return
         cur_curse = self.cursors.pop(sel_ind)
-        self.data_curs_x.pop(sel_ind).clear()
-        self.data_curs_y.pop(sel_ind).clear()
+        if self.plot_type == 2:
+            self.data_curs_x.pop(sel_ind).clear()
+            self.data_curs_y.pop(sel_ind).clear()
         self.plt_main.removeItem(cur_curse[3])
         del cur_curse[3]
+        self.update_lstbx_cursors()
     def _event_btn_cursor_reset(self):
-        if not isinstance(self.y_data, np.ndarray):
+        if not isinstance(self.x_data, np.ndarray) and not isinstance(self.y_data, np.ndarray):
             return
         xMin = self.x_data.min()
         xMax = self.x_data.max()
@@ -1049,6 +1054,9 @@ class MainWindow:
     def plot_1D(self, x, y, yLabel):
         if self.data_line == None:
             return
+        self.x_data = x
+        self.y_data = y
+        self.z_data = None
         self.data_line.setData(x, y)
         self.plt_main.getAxis('bottom').setLabel(str(self.win.cmbx_axis_x.currentText()))
         self.plt_main.getAxis('left').setLabel(yLabel)        
