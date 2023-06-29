@@ -84,6 +84,16 @@ class DataExtractorH5multiple(DataExtractor):
             if self._param_names.index(params['axis_vars'][0]) > self._param_names.index(params['axis_vars'][1]):
                 for ind in range(len(self._dep_params)):
                     final_data[ind] = final_data[ind].T
+            
+            #Check if data needs to be reordered
+            sort_indsX = np.argsort(indep_params[0])
+            sort_indsY = np.argsort(indep_params[1])
+            indep_params[0] = indep_params[0][sort_indsX]
+            indep_params[1] = indep_params[1][sort_indsY]
+            for ind in range(len(self._dep_params)):
+                final_data[ind] = final_data[ind][sort_indsX, :]
+                final_data[ind] = final_data[ind][:, sort_indsY]
+
         return (indep_params, final_data, dict_rem_slices)
 
     def get_independent_vars(self):

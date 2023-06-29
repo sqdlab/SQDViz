@@ -595,6 +595,8 @@ class MainWindow:
                         yVar = str(self.win.cmbx_axis_y.currentText())
                         if xVar != yVar:
                             self.data_extractor.fetch_data({'axis_vars':[xVar, yVar], 'slice_vars':slice_vars})
+                        else:
+                            self.write_statusbar("X and Y axes must be different for a 2D plot")
 
                     self.last_update_time = time.time()
 
