@@ -3,6 +3,8 @@ import sys, inspect
 import numpy as np
 import scipy
 import scipy.ndimage
+import scipy.sparse
+import scipy.sparse.linalg
 
 class PostProcessors:
     def get_description(self):
@@ -164,6 +166,37 @@ class PP_SubRegY(PostProcessors):
         ret_val['data'] = args[0]['data'] - means
         return (ret_val, )
 
+class PP_SubRegMedianY(PostProcessors):
+    def get_description(self):
+        return "Performs a line-by-line subtraction of every vertical line by the median value over a selected y-interval on said line."
+
+    def get_input_args(self):
+        return [('Input dataset', 'data'), ('Y-interval', 'cursor', 'Y-Region')]
+
+    def get_output_args(self):
+        return [('Filtered data', 'data', 'filtData')]
+
+    def supports_1D(self):
+        return False
+
+    def __call__(self, *args):
+        ret_val = {}
+        ret_val['x'] = args[0]['x']
+        ret_val['y'] = args[0]['y']
+        
+        anal_cursorY = args[1]
+        ind1 = (np.abs(ret_val['y'] - anal_cursorY.y1)).argmin()
+        ind2 = (np.abs(ret_val['y'] - anal_cursorY.y2)).argmin()
+        if ind2 < ind1:
+            temp = ind1
+            ind1 = ind2
+            ind2 = temp
+
+        ret_val['y'] = args[0]['y']
+        medians = np.nanmedian(args[0]['data'][ind1:(ind2+1),:],axis=0)
+        ret_val['data'] = args[0]['data'] - medians
+        return (ret_val, )
+
 class PP_DivRegX(PostProcessors):
     def get_description(self):
         return "Performs a line-by-line division of every horizontal line by the average value over a selected x-interval on said line."
@@ -316,7 +349,7 @@ class PP_Log(PostProcessors):
             ret_val['y'] = args[0]['y']
         
         #Make any non-positive values NaN...
-        temp_data = args[0]['data'][:]
+        temp_data = args[0]['data'][:]*1.0
         temp_data[temp_data <= 0] = np.nan
         ret_val['data'] = args[1]*np.log10(temp_data)
 
@@ -441,3 +474,64 @@ class PP_DerivY(PostProcessors):
             derivY = (ret_val['data'][1:] - ret_val['data'][:-1]) / (ret_val['x'][1:] - ret_val['x'][:-1])
             ret_val['data'] = np.concatenate([[derivY[0]], derivY])
         return (ret_val, )
+
+# class PP_SubSplineX(PostProcessors):
+#     def get_description(self):
+#         return "For every horizontal line, a smoothed spline is fit (Filtered Data) and then subtracted from the data (Subtracted Data) to effectively remove its background."
+
+#     def get_input_args(self):
+#         return [('Input dataset', 'data')]
+
+#     def get_output_args(self):
+#         return [('Filtered Data', 'data', 'filtData'), ('Subtracted Data', 'data', 'subData')]
+
+#     def __call__(self, *args):
+#         ret_val = {}
+#         ret_val['x'] = args[0]['x']
+
+#         #https://stackoverflow.com/questions/29156532/python-baseline-correction-library
+#         def baseline_als(y, lam, p, niter=10):
+#             L = len(y)
+#             D = scipy.sparse.csc_matrix(np.diff(np.eye(L), 2))
+#             w = np.ones(L)
+#             for m in range(niter):
+#                 W = scipy.sparse.spdiags(w, 0, L, L)
+#                 Z = W + lam * D.dot(D.transpose())
+#                 z = scipy.sparse.linalg.spsolve(Z, w*y)
+#                 w = p * (y > z) + (1-p) * (y < z)
+#             return z
+
+#         if 'y' in args[0]:
+#             ret_val['y'] = args[0]['y']
+#             ret_val['data'] = args[0]['data']*0.0
+
+#             for m, cur_line in enumerate(args[0]['data']):
+#                 ret_val['data'][m] = baseline_als(cur_line, 100, 0.05)
+#         else:
+#             ret_val['data'] = baseline_als(args[0]['data'], 100, 0.05)
+#         return (ret_val, ret_val)
+
+class PP_SubMedianX(PostProcessors):
+    def get_description(self):
+        return "For every horizontal line, a median filter is applied (Filtered Data) and then subtracted from the data (Subtracted Data) to effectively remove its background."
+
+    def get_input_args(self):
+        return [('Input dataset', 'data'), ('Window size', 'int', 3)]
+
+    def get_output_args(self):
+        return [('Filtered Data', 'data', 'filtData'), ('Subtracted Data', 'data', 'subData')]
+
+    def __call__(self, *args):
+        ret_val = {}
+        ret_val['x'] = args[0]['x']
+        ret_val_sub = {}
+        ret_val_sub['x'] = args[0]['x']
+
+        if 'y' in args[0]:
+            ret_val['y'] = args[0]['y']
+            ret_val_sub['y'] = args[0]['y']
+            ret_val['data'] = scipy.ndimage.median_filter(args[0]['data'], size=(1, args[1]))
+        else:
+            ret_val['data'] = scipy.ndimage.median_filter(args[0]['data'], size=(args[1]))
+        ret_val_sub['data'] = args[0]['data'] - ret_val['data']
+        return (ret_val, ret_val_sub)
