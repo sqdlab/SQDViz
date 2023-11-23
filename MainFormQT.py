@@ -18,6 +18,7 @@ from PostProcessors import*
 from functools import partial
 
 from Cursors.Cursor_Cross import Cursor_Cross
+from Cursors.Cursor_Vertical import Cursor_Vertical
 from Cursors.Analy_Cursors import*
 
 class ColourMap:
@@ -58,6 +59,7 @@ class MainWindow:
 
         self.analysis_cursors = []
         self.cursors = []   #Holds: (latest x value, latest y value, colour as a 3-vector RGB or character, Cursor_Cross object)
+        self.colbar_cursors = []
         self.win.btn_cursor_add.clicked.connect(self._event_btn_cursor_add)
         self.win.btn_cursor_del.clicked.connect(self._event_btn_cursor_del)
         # plot data: x, y values
@@ -134,6 +136,11 @@ class MainWindow:
         self.win.cmbx_ckey.addItems([x.Name for x in self.colour_maps])
         self.win.cmbx_ckey.currentIndexChanged.connect(partial(self._event_cmbx_key_changed) )
 
+        self.win.cmbx_colbar_num_marks.addItems([str(x) for x in range(2,9)])
+        self.win.cmbx_colbar_num_marks.currentIndexChanged.connect(partial(self._event_cmbx_colbar_marks_changed) )
+        self.win.btn_colbar_reset.clicked.connect(self._event_btn_colbar_reset)
+        self.win.btn_colbar_histeq.clicked.connect(self._event_btn_colbar_histeq)
+
         #Hide the differential cursors...
         self.win.tbl_cursor_diffs.setVisible(False)
         self.win.tbl_cursor_diffs.setColumnCount(6)
@@ -169,6 +176,17 @@ class MainWindow:
     def _event_cmbx_key_changed(self, idx):
         if self.colBarItem != None:
             self.colBarItem.setColorMap(self.colour_maps[self.win.cmbx_ckey.currentIndex()].CMap)
+
+    def _event_cmbx_colbar_marks_changed(self, idx):
+        self.set_colbar_cursors(int(self.win.cmbx_colbar_num_marks.currentText()))
+    def _event_btn_colbar_reset(self):
+        self.reset_colbar_ticks()
+    def _event_btn_colbar_histeq(self):
+        if isinstance(self.z_data, np.ndarray) and len(self.colbar_cursors) > 0:
+            vals = np.linspace(0,1, len(self.colbar_cursors) + 2)
+            vals = np.quantile(self.z_data.flatten(), vals[1:-1:])
+            for m, cur_col_curse in enumerate(self.colbar_cursors):
+                cur_col_curse.set_value(vals[m])
 
     def trLst(self, lst):
         return [self.app.tr(x) for x in self.indep_vars]
@@ -216,6 +234,9 @@ class MainWindow:
                 self.cursors[m] += [None]
         for cur_anal_curse in self.analysis_cursors:
             cur_anal_curse.release_from_plots()
+        for cur_colbar_curse in self.colbar_cursors:
+            self.plt_main.removeItem(cur_colbar_curse)
+        self.colbar_cursors.clear()
         self.plot_layout_widget.clear()
         #
         self.data_line = None
@@ -223,6 +244,7 @@ class MainWindow:
         self.plt_main = None
         self.data_img = None
         self.colBarItem = None
+        self.cur_col_map = None
         self.plt_curs_x = None
         self.plt_curs_y = None
         self.data_curs_x = []
@@ -231,13 +253,16 @@ class MainWindow:
         self.data_colhist = None
         #
         self.y_data = None
+        self.z_data = None
 
         if plot_dim == 1:
+            self.win.gpbx_col_scheme.setEnabled(False)
             self.plt_main = self.plot_layout_widget.addPlot(row=0, col=0)
             self.data_line = self.plt_main.plot([], [])
             self.update_all_cursors()
             self.update_all_anal_cursors()
         else:
+            self.win.gpbx_col_scheme.setEnabled(True)
             self.plt_main = self.plot_layout_widget.addPlot(row=1, col=1)
 
             self.plt_curs_x = self.plot_layout_widget.addPlot(row=0, col=1)
@@ -261,8 +286,9 @@ class MainWindow:
             self.update_all_anal_cursors()
             
             cm = self.colour_maps[self.win.cmbx_ckey.currentIndex()].CMap
-            self.colBarItem = pg.ColorBarItem( values= (0, 1), colorMap=cm, orientation='horizontal' )
+            self.colBarItem = pg.ColorBarItem( values= (0, 1), colorMap=cm, orientation='horizontal' , interactive=False)
             self.colBarItem.setImageItem( self.data_img, insert_in=self.plt_colhist )
+            self.set_colbar_cursors(int(self.win.cmbx_colbar_num_marks.currentText()))
 
             self.plot_layout_widget.ci.layout.setRowStretchFactor(0, 1)
             self.plot_layout_widget.ci.layout.setRowStretchFactor(1, 4)
@@ -508,7 +534,30 @@ class MainWindow:
         if self.plt_main:
             self.plt_main.removeItem(found_curse)
         del found_curse
-        
+
+    def set_colbar_cursors(self, num):
+        reset = len(self.colbar_cursors) != num
+        while len(self.colbar_cursors) > num - 2:
+            self.plt_colhist.removeItem( self.colbar_cursors.pop() )
+        while len(self.colbar_cursors) < num - 2:
+            self.colbar_cursors.append(Cursor_Vertical(0.7, 'red', self._callback_colbar_get_bounds))            
+            self.plt_colhist.addItem(self.colbar_cursors[-1], ignoreBounds=True )
+        if reset:
+            self.reset_colbar_ticks()
+    def reset_colbar_ticks(self):
+        if isinstance(self.z_data, np.ndarray):
+            zMin = np.min(self.z_data)
+            zMax = np.max(self.z_data)
+            vals = np.linspace(zMin, zMax, len(self.colbar_cursors)+2)
+        else:
+            vals = np.linspace(0,1, len(self.colbar_cursors)+2)
+        for m, x in enumerate(vals[1:-1:]):
+            self.colbar_cursors[m].set_value(x)
+    def _callback_colbar_get_bounds(self):
+        if isinstance(self.z_data, np.ndarray):
+            return np.min(self.z_data), np.max(self.z_data)
+        else:
+            return 0, 1
 
     def _event_chkbx_anal_cursor_show(self, item):
         if self._anal_cursor_add_block_event or item.column() != 0:
@@ -1019,6 +1068,7 @@ class MainWindow:
     def _callback_cmbx_post_procs_disp_final_output_callback(self, cmbx, idx):
         self.cur_post_proc_output = str(cmbx.currentText())
         self.win.lstbx_cur_post_procs.item(len(self.cur_post_procs)).setText("Final Output: "+self.cur_post_proc_output)
+        self.reset_colbar_ticks()
         return
     def _callback_chkbx_post_procs_disp_enabled(self, sel_index, state):
         self.cur_post_procs[sel_index]['Enabled'] = (state != QtCore.Qt.CheckState.Unchecked)
@@ -1148,6 +1198,21 @@ class MainWindow:
         centres = 0.5*(bin_edges[1:]+bin_edges[:-1])
         self.data_colhist.setData(centres, hist_vals)
         #
+        
+        leColMap = self.colour_maps[self.win.cmbx_ckey.currentIndex()].CMap
+        leColMap = leColMap.getLookupTable()
+
+
+        minZ, maxZ = self._callback_colbar_get_bounds()
+
+        num_pts = len(self.colbar_cursors) + 2
+        mkr_pts = [0] + [(x.get_value()-minZ)/(maxZ-minZ) for x in self.colbar_cursors] + [1]
+
+        yinterp = np.interp(np.linspace(0,1,512), np.linspace(0,1, num_pts), np.array(sorted(mkr_pts)))
+
+        self.cur_col_map = pg.ColorMap(yinterp, leColMap)
+        self.colBarItem.setColorMap(self.cur_col_map)
+
         z_min, z_max = self.colBarItem.levels()
         zMin, zMax = self.z_data.min(), self.z_data.max()
         if np.abs(zMin - z_min) > 1e-12 or np.abs(zMax - z_max) > 1e-12:

@@ -324,10 +324,16 @@
         </property>
         <item>
          <widget class="QFrame" name="frame_9">
+          <property name="sizePolicy">
+           <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+            <horstretch>0</horstretch>
+            <verstretch>0</verstretch>
+           </sizepolicy>
+          </property>
           <property name="maximumSize">
            <size>
             <width>16777215</width>
-            <height>200</height>
+            <height>270</height>
            </size>
           </property>
           <property name="frameShape">
@@ -350,74 +356,153 @@
             <number>0</number>
            </property>
            <item>
-            <widget class="QGroupBox" name="groupBox_4">
-             <property name="title">
-              <string>Plot Parameters</string>
+            <widget class="QFrame" name="frame_16">
+             <property name="minimumSize">
+              <size>
+               <width>0</width>
+               <height>0</height>
+              </size>
              </property>
-             <layout class="QVBoxLayout" name="verticalLayout_9">
+             <property name="frameShape">
+              <enum>QFrame::StyledPanel</enum>
+             </property>
+             <property name="frameShadow">
+              <enum>QFrame::Raised</enum>
+             </property>
+             <layout class="QVBoxLayout" name="verticalLayout_14">
+              <property name="spacing">
+               <number>0</number>
+              </property>
+              <property name="sizeConstraint">
+               <enum>QLayout::SetDefaultConstraint</enum>
+              </property>
+              <property name="leftMargin">
+               <number>0</number>
+              </property>
+              <property name="topMargin">
+               <number>0</number>
+              </property>
+              <property name="rightMargin">
+               <number>0</number>
+              </property>
+              <property name="bottomMargin">
+               <number>0</number>
+              </property>
               <item>
-               <layout class="QGridLayout" name="gridLayout">
-                <property name="verticalSpacing">
-                 <number>6</number>
+               <widget class="QGroupBox" name="groupBox_4">
+                <property name="sizePolicy">
+                 <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+                  <horstretch>0</horstretch>
+                  <verstretch>0</verstretch>
+                 </sizepolicy>
                 </property>
-                <item row="2" column="1">
-                 <widget class="QComboBox" name="cmbx_axis_x"/>
-                </item>
-                <item row="0" column="0">
-                 <widget class="QRadioButton" name="rbtn_plot_1D">
-                  <property name="text">
-                   <string>Plot 1D</string>
-                  </property>
-                  <property name="checked">
-                   <bool>true</bool>
-                  </property>
-                 </widget>
-                </item>
-                <item row="1" column="0">
-                 <widget class="QRadioButton" name="rbtn_plot_2D">
-                  <property name="text">
-                   <string>Plot 2D</string>
-                  </property>
-                 </widget>
-                </item>
-                <item row="3" column="0">
-                 <widget class="QLabel" name="label_4">
-                  <property name="text">
-                   <string>y-axis</string>
-                  </property>
-                 </widget>
-                </item>
-                <item row="3" column="1">
-                 <widget class="QComboBox" name="cmbx_axis_y"/>
-                </item>
-                <item row="2" column="0">
-                 <widget class="QLabel" name="label_5">
-                  <property name="text">
-                   <string>x-axis</string>
-                  </property>
-                 </widget>
-                </item>
-                <item row="4" column="0">
-                 <widget class="QLabel" name="label_6">
-                  <property name="text">
-                   <string>Dep. Var.</string>
-                  </property>
-                 </widget>
-                </item>
-                <item row="4" column="1">
-                 <widget class="QComboBox" name="cmbx_dep_var"/>
-                </item>
-                <item row="5" column="0">
-                 <widget class="QLabel" name="label">
-                  <property name="text">
-                   <string>Col. Scheme</string>
-                  </property>
-                 </widget>
-                </item>
-                <item row="5" column="1">
-                 <widget class="QComboBox" name="cmbx_ckey"/>
-                </item>
-               </layout>
+                <property name="title">
+                 <string>Plot Parameters</string>
+                </property>
+                <layout class="QVBoxLayout" name="verticalLayout_7">
+                 <item>
+                  <layout class="QGridLayout" name="gridLayout">
+                   <property name="verticalSpacing">
+                    <number>6</number>
+                   </property>
+                   <item row="3" column="0">
+                    <widget class="QLabel" name="label_4">
+                     <property name="text">
+                      <string>y-axis</string>
+                     </property>
+                    </widget>
+                   </item>
+                   <item row="1" column="0">
+                    <widget class="QRadioButton" name="rbtn_plot_2D">
+                     <property name="text">
+                      <string>Plot 2D</string>
+                     </property>
+                    </widget>
+                   </item>
+                   <item row="3" column="1">
+                    <widget class="QComboBox" name="cmbx_axis_y"/>
+                   </item>
+                   <item row="2" column="0">
+                    <widget class="QLabel" name="label_5">
+                     <property name="text">
+                      <string>x-axis</string>
+                     </property>
+                    </widget>
+                   </item>
+                   <item row="2" column="1">
+                    <widget class="QComboBox" name="cmbx_axis_x"/>
+                   </item>
+                   <item row="4" column="0">
+                    <widget class="QLabel" name="label_6">
+                     <property name="text">
+                      <string>Dep. Var.</string>
+                     </property>
+                    </widget>
+                   </item>
+                   <item row="4" column="1">
+                    <widget class="QComboBox" name="cmbx_dep_var"/>
+                   </item>
+                   <item row="0" column="0">
+                    <widget class="QRadioButton" name="rbtn_plot_1D">
+                     <property name="text">
+                      <string>Plot 1D</string>
+                     </property>
+                     <property name="checked">
+                      <bool>true</bool>
+                     </property>
+                    </widget>
+                   </item>
+                  </layout>
+                 </item>
+                </layout>
+               </widget>
+              </item>
+              <item>
+               <widget class="QGroupBox" name="gpbx_col_scheme">
+                <property name="title">
+                 <string>Colour Bar</string>
+                </property>
+                <layout class="QVBoxLayout" name="verticalLayout_9">
+                 <item>
+                  <layout class="QGridLayout" name="gridLayout_4">
+                   <item row="1" column="1">
+                    <widget class="QComboBox" name="cmbx_colbar_num_marks"/>
+                   </item>
+                   <item row="0" column="1">
+                    <widget class="QComboBox" name="cmbx_ckey"/>
+                   </item>
+                   <item row="0" column="0">
+                    <widget class="QLabel" name="label">
+                     <property name="text">
+                      <string>Col. Scheme</string>
+                     </property>
+                    </widget>
+                   </item>
+                   <item row="1" column="0">
+                    <widget class="QLabel" name="label_2">
+                     <property name="text">
+                      <string>Num. Marks</string>
+                     </property>
+                    </widget>
+                   </item>
+                   <item row="2" column="1">
+                    <widget class="QPushButton" name="btn_colbar_histeq">
+                     <property name="text">
+                      <string>Equalise</string>
+                     </property>
+                    </widget>
+                   </item>
+                   <item row="2" column="0">
+                    <widget class="QPushButton" name="btn_colbar_reset">
+                     <property name="text">
+                      <string>Reset</string>
+                     </property>
+                    </widget>
+                   </item>
+                  </layout>
+                 </item>
+                </layout>
+               </widget>
               </item>
              </layout>
             </widget>
