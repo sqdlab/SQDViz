@@ -353,7 +353,7 @@ class MainWindow:
             self.win.lstbx_cursors.addItem('')
         for m in range(len(self.cursors)):
             cur_x, cur_y, col = self.cursors[m][:3]
-            self.win.lstbx_cursors.item(m).setText(f"X: {cur_x}, Y: {cur_y}")
+            self.win.lstbx_cursors.item(m).setText(f"X: {self._get_units(cur_x)}, Y: {self._get_units(cur_y)}")
             self.win.lstbx_cursors.item(m).setForeground(QtGui.QBrush(pg.mkBrush(col)))
         #Update differential cursors
         if len(self.cursors) > 1:
@@ -382,24 +382,24 @@ class MainWindow:
                 cur_table.setItem(m,1,item)
                 #
                 dx = self.cursors[cur_comb[0]][0]-self.cursors[cur_comb[1]][0]
-                item = QtWidgets.QTableWidgetItem(f'{dx}')
+                item = QtWidgets.QTableWidgetItem(f'{self._get_units(dx)}')
                 item.setFlags(item.flags() ^ QtCore.Qt.ItemIsEditable)
                 cur_table.setItem(m,2,item)
                 #
                 dy = self.cursors[cur_comb[0]][1]-self.cursors[cur_comb[1]][1]
-                item = QtWidgets.QTableWidgetItem(f'{dy}')
+                item = QtWidgets.QTableWidgetItem(f'{self._get_units(dy)}')
                 item.setFlags(item.flags() ^ QtCore.Qt.ItemIsEditable)
                 cur_table.setItem(m,3,item)
                 #
                 if abs(dx) > 0:
-                    item = QtWidgets.QTableWidgetItem(f'{1/dx}')
+                    item = QtWidgets.QTableWidgetItem(f'{self._get_units(1/dx)}')
                 else:
                     item = QtWidgets.QTableWidgetItem(f'N/A')
                 item.setFlags(item.flags() ^ QtCore.Qt.ItemIsEditable)
                 cur_table.setItem(m,4,item)
                 #
                 if abs(dy) > 0:
-                    item = QtWidgets.QTableWidgetItem(f'{1/dy}')
+                    item = QtWidgets.QTableWidgetItem(f'{self._get_units(1/dy)}')
                 else:
                     item = QtWidgets.QTableWidgetItem(f'N/A')
                 item.setFlags(item.flags() ^ QtCore.Qt.ItemIsEditable)
@@ -534,6 +534,28 @@ class MainWindow:
         if self.plt_main:
             self.plt_main.removeItem(found_curse)
         del found_curse
+    def _get_units(self, val):
+        if isinstance(val, float) or isinstance(val, int):
+            thinspace = u"\u2009"
+            def clip_val(value):
+                return f'{value:.12g}'
+
+            if np.abs(val) < 1e-6:
+                return f'{clip_val(val*1e9)}{thinspace}n'
+            if np.abs(val) < 1e-3:
+                return f'{clip_val(val*1e6)}{thinspace}μ'
+            if np.abs(val) < 1:
+                return f'{clip_val(val*1e3)}{thinspace}m'
+            if np.abs(val) < 1000:
+                return val
+            if np.abs(val) < 1e6:
+                return f'{clip_val(val*1e-3)}{thinspace}k'
+            if np.abs(val) < 1e9:
+                return f'{clip_val(val*1e-6)}{thinspace}M'
+
+            return f'{clip_val(val*1e-9)}{thinspace}G'
+        else:
+            return val
 
     def set_colbar_cursors(self, num):
         reset = len(self.colbar_cursors) != num
