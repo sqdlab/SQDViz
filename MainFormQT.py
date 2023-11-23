@@ -184,7 +184,7 @@ class MainWindow:
     def _event_btn_colbar_histeq(self):
         if isinstance(self.z_data, np.ndarray) and len(self.colbar_cursors) > 0:
             vals = np.linspace(0,1, len(self.colbar_cursors) + 2)
-            vals = np.quantile(self.z_data.flatten(), vals[1:-1:])
+            vals = np.nanquantile(self.z_data.flatten(), vals[1:-1:])
             for m, cur_col_curse in enumerate(self.colbar_cursors):
                 cur_col_curse.set_value(vals[m])
 
@@ -568,8 +568,8 @@ class MainWindow:
             self.reset_colbar_ticks()
     def reset_colbar_ticks(self):
         if isinstance(self.z_data, np.ndarray):
-            zMin = np.min(self.z_data)
-            zMax = np.max(self.z_data)
+            zMin = np.nanmin(self.z_data)
+            zMax = np.nanmax(self.z_data)
             vals = np.linspace(zMin, zMax, len(self.colbar_cursors)+2)
         else:
             vals = np.linspace(0,1, len(self.colbar_cursors)+2)
@@ -577,7 +577,7 @@ class MainWindow:
             self.colbar_cursors[m].set_value(x)
     def _callback_colbar_get_bounds(self):
         if isinstance(self.z_data, np.ndarray):
-            return np.min(self.z_data), np.max(self.z_data)
+            return np.nanmin(self.z_data), np.nanmax(self.z_data)
         else:
             return 0, 1
 
@@ -1236,7 +1236,7 @@ class MainWindow:
         self.colBarItem.setColorMap(self.cur_col_map)
 
         z_min, z_max = self.colBarItem.levels()
-        zMin, zMax = self.z_data.min(), self.z_data.max()
+        zMin, zMax = np.nanmin(self.z_data), np.nanmax(self.z_data)
         if np.abs(zMin - z_min) > 1e-12 or np.abs(zMax - z_max) > 1e-12:
             self.colBarItem.setLevels((zMin, zMax))
         #
