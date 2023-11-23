@@ -106,6 +106,7 @@ class MainWindow:
         #Currently selected postprocessors
         self.cur_post_procs = []
         self.cur_post_proc_output = "dFinal"
+        self.cur_post_proc_outputAux = "None"
         self.frm_proc_disp_children = []
         self.win.lstbx_cur_post_procs.itemSelectionChanged.connect(self._event_lstbx_proc_current_changed)
         self.win.btn_proc_list_up.clicked.connect(self._event_btn_post_proc_up)
@@ -242,6 +243,7 @@ class MainWindow:
 
             self.plt_curs_x = self.plot_layout_widget.addPlot(row=0, col=1)
             self.data_curs_x = [self.plt_curs_x.plot([],[],pen=pg.mkPen(self.cursors[x][2])) for x in range(len(self.cursors))]
+            self.data_cursAux_x = self.plt_curs_x.plot([],[],pen=pg.mkPen('white'))
             self.plt_curs_x.setXLink(self.plt_main) 
 
             self.plt_curs_y = self.plot_layout_widget.addPlot(row=1, col=0)
@@ -294,10 +296,14 @@ class MainWindow:
             cur_x, cur_y = self.cursors[curse_num][3].get_value()
         self.cursors[curse_num][1] = cur_y
         self.update_lstbx_cursors()
-        if not isinstance(self.y_data, np.ndarray) or len(self.data_curs_x) <= curse_num:
-            return
-        ind = np.argmin(np.abs(cur_y - self.y_data))
-        self.data_curs_x[curse_num].setData(self.x_data, self.z_data[:,ind])
+        if isinstance(self.y_data, np.ndarray) and len(self.data_curs_x) > curse_num:        
+            ind = np.argmin(np.abs(cur_y - self.y_data))
+            self.data_curs_x[curse_num].setData(self.x_data, self.z_data[:,ind])
+        if isinstance(self.y_data, np.ndarray) and curse_num == 0 and isinstance(self.z_dataAux, np.ndarray):
+            ind = np.argmin(np.abs(cur_y - self.y_data))
+            self.data_cursAux_x.setData(self.x_data, self.z_dataAux[:,ind])
+        else:
+            self.data_cursAux_x.setData([])
     def update_cursor_y(self, curse_num, leCursor=None):
         #Run the cursors
         if self.cursors[curse_num][3] == None:
@@ -545,7 +551,7 @@ class MainWindow:
                     if self.plot_type == 1 and len(indep_params) == 1:
                         self.plot_1D(indep_params[0], final_data[cur_var_ind], self.win.cmbx_dep_var.currentText())
                     elif self.plot_type == 2 and len(indep_params) == 2:
-                        self.plot_2D(indep_params[0], indep_params[1], final_data[cur_var_ind])
+                        self.plot_2D(indep_params[0], indep_params[1], final_data[cur_var_ind], None)
                 #   
                 #Populate the slice candidates
                 #
@@ -938,7 +944,24 @@ class MainWindow:
             cmbx_proc_output.addItems(possible_inputs)
             cmbx_proc_output.setCurrentIndex(sel_ind)
             #
-            self.frm_proc_disp_children += [lbl_procs, cmbx_proc_output]
+            #
+            lbl_procsA = QtWidgets.QLabel(cur_frame)
+            lbl_procsA.setText("Auxiliary dataset")
+            cur_layout.addWidget(lbl_procsA, 1, 0, 1, 1)
+            #
+            cmbx_proc_outputA = QtWidgets.QComboBox(cur_frame)
+            cmbx_proc_outputA.currentIndexChanged.connect(partial(self._callback_cmbx_post_procs_disp_final_output_callbackA, cmbx_proc_outputA))
+            cur_layout.addWidget(cmbx_proc_outputA, 1, 1, 1, 1)
+            #
+            possible_inputs = ["None"] + self._get_post_procs_possible_inputs(cur_proc_ind)
+            sel_ind = 0
+            if len(possible_inputs) > 0 and self.cur_post_proc_outputAux in possible_inputs:
+                sel_ind = possible_inputs.index(self.cur_post_proc_outputAux)
+            cmbx_proc_outputA.addItems(possible_inputs)
+            cmbx_proc_outputA.setCurrentIndex(sel_ind)
+            #
+            #
+            self.frm_proc_disp_children += [lbl_procs, cmbx_proc_output, lbl_procsA, cmbx_proc_outputA]
             return
 
         #Selected a process in the post-processing chain
@@ -1019,6 +1042,9 @@ class MainWindow:
     def _callback_cmbx_post_procs_disp_final_output_callback(self, cmbx, idx):
         self.cur_post_proc_output = str(cmbx.currentText())
         self.win.lstbx_cur_post_procs.item(len(self.cur_post_procs)).setText("Final Output: "+self.cur_post_proc_output)
+        return
+    def _callback_cmbx_post_procs_disp_final_output_callbackA(self, cmbx, idx):
+        self.cur_post_proc_outputAux = str(cmbx.currentText())
         return
     def _callback_chkbx_post_procs_disp_enabled(self, sel_index, state):
         self.cur_post_procs[sel_index]['Enabled'] = (state != QtCore.Qt.CheckState.Unchecked)
@@ -1106,6 +1132,14 @@ class MainWindow:
         else:
             self.write_statusbar(f"Dataset \'{self.cur_post_proc_output}\' does not exist")   #It's the final entry - if it doesn't exist yet, it doesn't exist...
             return False
+        #
+        if self.cur_post_proc_outputAux in data:
+            cur_dataAux = data[self.cur_post_proc_outputAux]['data'].T
+        elif self.cur_post_proc_outputAux == "None":
+            cur_dataAux = None
+        else:
+            self.write_statusbar(f"Dataset \'{self.cur_post_proc_output}\' does not exist for the Auxiliary dataset.")   #It's the final entry - if it doesn't exist yet, it doesn't exist...
+            return False
 
         #No errors - so reset the message...
         self.write_statusbar("")
@@ -1113,7 +1147,7 @@ class MainWindow:
         #Update plots
         if 'data' in cur_data:  #Occurs when the dataset is empty...
             if 'y' in cur_data:
-                self.plot_2D(cur_data['x'], cur_data['y'], cur_data['data'].T)
+                self.plot_2D(cur_data['x'], cur_data['y'], cur_data['data'].T, cur_dataAux)
             else:
                 self.plot_1D(cur_data['x'], cur_data['data'], self.cur_post_proc_output)
         return True
@@ -1128,7 +1162,7 @@ class MainWindow:
         self.plt_main.getAxis('bottom').setLabel(str(self.win.cmbx_axis_x.currentText()))
         self.plt_main.getAxis('left').setLabel(yLabel)        
 
-    def plot_2D(self, x, y, z):
+    def plot_2D(self, x, y, z, zAux):
         dx = (x[-1]-x[0])/(x.size-1)
         dy = (y[-1]-y[0])/(y.size-1)
         xMin = x[0] - dx*0.5
@@ -1139,6 +1173,7 @@ class MainWindow:
         self.x_data = x
         self.y_data = y
         self.z_data = z
+        self.z_dataAux = zAux
         self.data_img.setImage(self.z_data)
         self.data_img.setRect(QtCore.QRectF(xMin, yMin, xMax-xMin, yMax-yMin))
         #
