@@ -5,6 +5,7 @@ import scipy
 import scipy.ndimage
 import scipy.sparse
 import scipy.sparse.linalg
+import scipy.signal
 
 class PostProcessors:
     def get_description(self):
@@ -163,6 +164,38 @@ class PP_SubRegY(PostProcessors):
 
         ret_val['y'] = args[0]['y']
         means = np.nanmean(args[0]['data'][ind1:(ind2+1),:],axis=0)
+        ret_val['data'] = args[0]['data'] - means
+        return (ret_val, )
+
+class PP_SubBackRegFiltY(PostProcessors):
+    def get_description(self):
+        return "Given a y-interval, the average horizontal line is found. Then this line is median-filtered (odd window size) across the x-axis. Then this line is subtracted from every horizontal line."
+
+    def get_input_args(self):
+        return [('Input dataset', 'data'), ('Y-interval', 'cursor', 'Y-Region'), ('Filt. Win. Size', 'int', 5)]
+
+    def get_output_args(self):
+        return [('Filtered data', 'data', 'filtData')]
+
+    def supports_1D(self):
+        return False
+
+    def __call__(self, *args):
+        ret_val = {}
+        ret_val['x'] = args[0]['x']
+        ret_val['y'] = args[0]['y']
+        
+        anal_cursorY = args[1]
+        ind1 = (np.abs(ret_val['y'] - anal_cursorY.y1)).argmin()
+        ind2 = (np.abs(ret_val['y'] - anal_cursorY.y2)).argmin()
+        if ind2 < ind1:
+            temp = ind1
+            ind1 = ind2
+            ind2 = temp
+
+        ret_val['y'] = args[0]['y']
+        means = np.nanmean(args[0]['data'][ind1:(ind2+1),:],axis=0)
+        means = scipy.signal.medfilt(means, args[2])
         ret_val['data'] = args[0]['data'] - means
         return (ret_val, )
 
