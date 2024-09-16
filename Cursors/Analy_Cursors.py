@@ -33,8 +33,11 @@ class Analy_Cursor:
     
     def _set_visibility(self, bool_val):
         raise NotImplementedError()
+   
+    def init_cursor(self, plot_widget, axis_bounds):    #axis_bounds given as (xMin, xMax, yMin, yMax)
+        raise NotImplementedError()
 
-    def init_cursor(self, plot_widget):
+    def reset_bounds(self, axis_bounds):
         raise NotImplementedError()
     
     def release_from_plots(self):
@@ -76,7 +79,7 @@ class AC_RegionX(Analy_Cursor):
         else:
             return 0
 
-    def init_cursor(self, plot_widget):
+    def init_cursor(self, plot_widget, axis_bounds):
         penBase = pg.mkPen(self.Colour)
         h,s,v = penBase.color().hue(), penBase.color().saturation(), penBase.color().value()
         invcol = QtGui.QColor.fromHsvF(((h + 128) % 255)/255.0, s/255.0, v/255.0)
@@ -88,12 +91,15 @@ class AC_RegionX(Analy_Cursor):
         #
         lineKwds = dict(movable=True, pen=penBase, hoverPen=penHover, brush=brushBase, hoverBrush=brushInv)
         #
-        self.region = pg.LinearRegionItem(**lineKwds)
+        self.region = pg.LinearRegionItem(values=(axis_bounds[0], axis_bounds[1]), **lineKwds)
         self.plot_widget = plot_widget
         self.plot_widget.addItem(self.region, ignoreBounds=True)
         self._set_visibility(self.Visible)
         self.region.sigRegionChanged.connect(self._event_region_changed)
     
+    def reset_bounds(self, axis_bounds):
+        self.region.setRegion((axis_bounds[0], axis_bounds[1]))
+
     def _event_region_changed(self):
         self._ext_callback(self)
 
@@ -139,7 +145,7 @@ class AC_RegionY(Analy_Cursor):
         else:
             return 0
 
-    def init_cursor(self, plot_widget):
+    def init_cursor(self, plot_widget, axis_bounds):
         penBase = pg.mkPen(self.Colour)
         h,s,v = penBase.color().hue(), penBase.color().saturation(), penBase.color().value()
         invcol = QtGui.QColor.fromHsvF(((h + 128) % 255)/255.0, s/255.0, v/255.0)
@@ -151,11 +157,14 @@ class AC_RegionY(Analy_Cursor):
         #
         lineKwds = dict(movable=True, pen=penBase, hoverPen=penHover, brush=brushBase, hoverBrush=brushInv)
         #
-        self.region = pg.LinearRegionItem(orientation='horizontal', **lineKwds)
+        self.region = pg.LinearRegionItem(values=(axis_bounds[2], axis_bounds[3]), orientation='horizontal', **lineKwds)
         self.plot_widget = plot_widget
         self.plot_widget.addItem(self.region, ignoreBounds=True)
         self._set_visibility(self.Visible)
         self.region.sigRegionChanged.connect(self._event_region_changed)
+    
+    def reset_bounds(self, axis_bounds):
+        self.region.setRegion((axis_bounds[2], axis_bounds[3]))
     
     def _event_region_changed(self):
         self._ext_callback(self)

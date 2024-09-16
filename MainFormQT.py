@@ -464,6 +464,8 @@ class MainWindow:
                 self.cursors[m][:2] = x, y
             else:
                 self.cursors[m][3].set_value(x, y)
+        for cur_curse in self.analysis_cursors:
+            cur_curse.reset_bounds((xMin,xMax, yMin,yMax))
 
     def update_all_anal_cursors(self):
         for cur_curse in self.analysis_cursors:
@@ -521,7 +523,14 @@ class MainWindow:
         #
         #Link to plot if applicable
         if self.plt_main:
-            new_anal_curse.init_cursor(self.plt_main)
+            if not isinstance(self.x_data, np.ndarray) or not isinstance(self.y_data, np.ndarray):
+                xMin, xMax, yMin, yMax = 0,1,0,1
+            else:
+                xMin = self.x_data.min()
+                xMax = self.x_data.max()
+                yMin = self.y_data.min()
+                yMax = self.y_data.max()
+            new_anal_curse.init_cursor(self.plt_main, (xMin, xMax, yMin, yMax))
     def _event_btn_anal_cursor_del(self):
         cur_row = self.win.tbl_analy_cursors.currentRow()
         if cur_row < 0: #It actually returns -1!!!
