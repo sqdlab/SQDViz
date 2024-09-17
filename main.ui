@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>1093</width>
-    <height>705</height>
+    <height>782</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -951,6 +951,8 @@
    <addaction name="separator"/>
    <addaction name="actiongetFileAttributes"/>
    <addaction name="actiongetFileFigure"/>
+   <addaction name="separator"/>
+   <addaction name="actionExportNpyPython"/>
   </widget>
   <action name="actionFopenH5">
    <property name="icon">
@@ -1046,6 +1048,18 @@
    </property>
    <property name="toolTip">
     <string>Open UQToolz DAT file</string>
+   </property>
+  </action>
+  <action name="actionExportNpyPython">
+   <property name="icon">
+    <iconset>
+     <normaloff>Icons/IconExportNPY.png</normaloff>Icons/IconExportNPY.png</iconset>
+   </property>
+   <property name="text">
+    <string>ExportNpyPython</string>
+   </property>
+   <property name="toolTip">
+    <string>Export NPY dataset and Matplotlib Python script for current plot(s).</string>
    </property>
   </action>
  </widget>
