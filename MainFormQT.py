@@ -831,7 +831,7 @@ class MainWindow:
                 #COLOUR-MAP
                 cur_cmap = self.win.cmbx_ckey.currentIndex()
                 if cur_cmap < len(self._def_col_maps):
-                    filedata = filedata.replace('LECUSTOMCOLOURMAP', self._def_col_maps[cur_cmap][0])
+                    filedata = filedata.replace('LECUSTOMCOLOURMAP', f"'{self._def_col_maps[cur_cmap][0]}'")
                 else:
                     filedata = filedata.replace('LECUSTOMCOLOURMAP', "matplotlib.colors.LinearSegmentedColormap.from_list('custom', raw_data.item().get('cmap'))")                   
                     dict_data['cmap'] = self._aux_col_maps[cur_cmap - len(self._def_col_maps)]
