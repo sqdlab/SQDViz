@@ -87,6 +87,7 @@ class MainWindow:
         win.actiongetFileFigure.triggered.connect(self._event_btn_get_fig)
         win.actiongotoFilePrev.triggered.connect(self._open_file_prev)
         win.actiongotoFileNext.triggered.connect(self._open_file_next)
+        win.actionExportNpyPython.triggered.connect(self._export_npy_matplotlib)
 
         #Plot Axis Radio Buttons
         self.win.rbtn_plot_1D.toggled.connect(self.event_rbtn_plot_axis)
@@ -121,16 +122,18 @@ class MainWindow:
         self._post_procs_update_configs_from_file()
         
         #Setup colour maps from Matplotlib
-        def_col_maps = [('viridis', "Viridis"), ('afmhot', "AFM Hot"), ('hot', "Hot"), ('gnuplot', "GNU-Plot"), ('coolwarm', "Cool-Warm"), ('seismic', "Seismic"), ('rainbow', "Rainbow")]
+        self._def_col_maps = [('viridis', "Viridis"), ('afmhot', "AFM Hot"), ('hot', "Hot"), ('gnuplot', "GNU-Plot"), ('inferno', "Inferno"), ('coolwarm', "Cool-Warm"), ('seismic', "Seismic"), ('rainbow', "Rainbow")]
         self.colour_maps = []
-        for cur_col_map in def_col_maps:
+        for cur_col_map in self._def_col_maps:
             self.colour_maps.append(ColourMap.fromMatplotlib(cur_col_map[0], cur_col_map[1]))
         #
+        self._aux_col_maps = []
         file_path = 'ColourMaps/'
         json_files = [pos_json for pos_json in os.listdir(file_path) if pos_json.endswith('.json')]
         for cur_json_file in json_files:
             with open(file_path + cur_json_file) as json_file:
                 data = json.load(json_file)
+                self._aux_col_maps.append(np.array(data))
                 self.colour_maps.append(ColourMap.fromCustom(np.array(data)*255.0, cur_json_file[:-5]))   #Still specify colour maps from 0 to 1. PyQTgraph just requires it from 0-255
         #Commit colour maps to ComboBox
         self.win.cmbx_ckey.addItems([x.Name for x in self.colour_maps])
@@ -774,6 +777,68 @@ class MainWindow:
         self.data_extractor = DataExtractorH5single(filename, self.data_thread_pool)
         self.file_path = filename
         self.setup_plot_vars()
+
+    def _export_npy_matplotlib(self):
+        if not isinstance(self.x_data, np.ndarray) or not isinstance(self.y_data, np.ndarray):
+            return
+
+        fileName = QtWidgets.QFileDialog.getSaveFileName(self.win, self.app.tr("Export NPY and PY"), "", self.app.tr("Numpy Files (*.npy)"))
+        if fileName[0] != '':
+            npy_file = fileName[0]
+            python_file = fileName[0][:-3]+'py'
+            
+            if not isinstance(self.z_data, np.ndarray):
+                np.save(npy_file, {'x_data':self.x_data, 'y_data':self.y_data})
+                #
+                with open('Miscellaneous/PythonExportTemplate1D.py', 'r', encoding="utf-8") as file:
+                    filedata = file.read()
+                filedata = filedata.replace('LEFILENAME', npy_file)
+                with open(python_file, 'w', encoding='utf-8') as file:
+                    file.write(filedata)
+            else:
+                #Colour Bar...
+                minZ, maxZ = self._callback_colbar_get_bounds()
+                mkr_pts = [0] + [(x.get_value()-minZ)/(maxZ-minZ) for x in self.colbar_cursors] + [1]
+                #
+                dict_data = {'x_data':self.x_data, 'y_data':self.y_data, 'z_data':self.z_data}
+                if len(self.cursors) > 0:
+                    dict_data['cursor_x'] = np.vstack([cur_cursor.getData()[1] for cur_cursor in self.data_curs_x])
+                    dict_data['cursor_y'] = np.vstack([cur_cursor.getData()[0] for cur_cursor in self.data_curs_y])
+                #
+                with open('Miscellaneous/PythonExportTemplate2D.py', 'r', encoding="utf-8") as file:
+                    filedata = file.read()
+                filedata = filedata.replace('LEFILENAME', npy_file)
+                #
+                #CURSORS
+                filedata = filedata.split('#CURSORPREPARE\n')
+                if len(self.cursors) > 0:
+                    filedata = ''.join(filedata)
+                    filedata = filedata.split('#CURSORPLOT\n')
+                    filedata = ''.join(filedata)
+                else:
+                    filedata = filedata[0] + filedata[2]
+                    filedata = filedata.split('#CURSORPLOT\n')
+                    filedata = filedata[0] + filedata[2]                
+                #
+                #COLOUR-BAR MARKERS
+                filedata = filedata.split('#HISTNORM\n')
+                if len(mkr_pts) > 2:
+                    filedata = ''.join(filedata)
+                    dict_data['colorbar'] = mkr_pts
+                else:
+                    filedata = filedata[0] + filedata[2]
+                #
+                #COLOUR-MAP
+                cur_cmap = self.win.cmbx_ckey.currentIndex()
+                if cur_cmap < len(self._def_col_maps):
+                    filedata = filedata.replace('LECUSTOMCOLOURMAP', self._def_col_maps[cur_cmap][0])
+                else:
+                    filedata = filedata.replace('LECUSTOMCOLOURMAP', "matplotlib.colors.LinearSegmentedColormap.from_list('custom', raw_data.item().get('cmap'))")                   
+                    dict_data['cmap'] = self._aux_col_maps[cur_cmap - len(self._def_col_maps)]
+
+                np.save(npy_file, dict_data)
+                with open(python_file, 'w', encoding='utf-8') as file:
+                    file.write(filedata)
 
     def _post_procs_update_configs_from_file(self):
         #Create file if it does not exist...
