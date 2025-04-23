@@ -436,9 +436,10 @@ class PP_DetrendX(PostProcessors):
                 x_vals = x_vals[idx]
                 y_vals = y_vals[idx]
 
-                if y_vals.size > 0:
+                if y_vals.size > 1:
                     p = np.poly1d(np.polyfit(x_vals, y_vals, args[1] ))
-                    ret_val['data'][m] = args[0]['data'][m] - p(np.arange(y_vals.size))
+                    ret_val['data'][m] = args[0]['data'][m]
+                    ret_val['data'][m][idx] -= p(np.arange(y_vals.size))
         else:
             y_vals = args[0]['data']
             x_vals = np.arange(y_vals.size)
