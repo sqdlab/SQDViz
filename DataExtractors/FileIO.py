@@ -1,3 +1,6 @@
+import os
+os.environ["HDF5_USE_FILE_LOCKING"] = "FALSE"
+
 import h5py
 import os.path
 import json
@@ -14,10 +17,32 @@ class FileIOWriter:
     def __init__(self, filepath, **kwargs):
         self._filepath = filepath
         self._hf = None
+        self._data_array_shape = None
         self.store_timestamps = kwargs.get('store_timestamps', True)
+        self._create_reverse_channels = kwargs.get('add_reverse_channels', False)
+        self._reverse_channel_suffix = kwargs.get('reverse_channel_suffix', '_reverse')
 
-    def _init_hdf5(self, sweep_vars, data_pkt):
+    def _get_dataset_sizes(self, sweep_vars, data_pkt):
+        random_dataset = next(iter(data_pkt['data'].values()))
+        if np.isscalar(random_dataset) or random_dataset.size == 1:
+            param_sizes = []
+        else:
+            param_sizes = list(random_dataset.shape)
+        #
+        if len(param_sizes) == 0:
+            data_pkt_size = 1
+        else:
+            data_pkt_size = np.prod(param_sizes)
+        data_array_shape = [x[1].size for x in sweep_vars] + param_sizes
+        if len(param_sizes) == 0:
+            param_sizes = [1]
+        
+        return data_pkt_size, param_sizes, data_array_shape
+
+    def _init_hdf5(self, sweep_vars, data_pkt, sweepEx = {}, ):
         if self._hf == None:
+            self._datapkt_size, param_sizes, self._data_array_shape = self._get_dataset_sizes(sweep_vars, data_pkt)
+            #
             if os.path.isfile(self._filepath):
                 self._hf = h5py.File(self._filepath, 'a', libver='latest')
                 self._hf.swmr_mode = True
@@ -28,14 +53,15 @@ class FileIOWriter:
                 grp_params = self._hf.create_group('parameters')
                 #Assumes uniformity - TODO: Look into padding with NaNs if the inner data packets change in shape (e.g. different repetitions etc...)
                 for m, cur_param in enumerate(sweep_vars):
-                    grp_params.create_dataset(cur_param[0].Name, data=np.hstack([m,cur_param[1]]))
+                    grp_params.create_dataset(cur_param[0].Name, data=np.hstack([m,cur_param[1]]), maxshape=(None,), chunks=True)
                 offset = len(sweep_vars)
                 #
-                random_dataset = next(iter(data_pkt['data'].values()))
-                if np.isscalar(random_dataset):
-                    param_sizes = (1,)
-                else:
-                    param_sizes = random_dataset.shape
+                if len(sweepEx) > 0:
+                    grp_paramEx = self._hf.create_group('param_many_one_maps')
+                    for cur_mVar in sweepEx:
+                        grp_cur_var = grp_paramEx.create_group(cur_mVar)
+                        for ind, cur_var in enumerate(sweepEx[cur_mVar]['vars']):
+                            grp_cur_var.create_dataset(cur_var.Name, data=np.hstack([ind,sweepEx[cur_mVar]['var_vals'][:,ind]]), maxshape=(None,))
                 #
                 for m, cur_param in enumerate(data_pkt['parameters']):
                     if 'parameter_values' in data_pkt and cur_param in data_pkt['parameter_values']:
@@ -48,51 +74,142 @@ class FileIOWriter:
                 grp_meas = self._hf.create_group('measurements')
                 self._meas_chs = []
                 for m, cur_meas_ch in enumerate(data_pkt['data'].keys()):
-                    grp_meas.create_dataset(cur_meas_ch, data=np.hstack([m]))
-                    self._meas_chs += [cur_meas_ch]
+                    grp_meas.create_dataset(cur_meas_ch, data=np.hstack([m]), maxshape=(None,))
+                    self._meas_chs.append(cur_meas_ch)
+                if self._create_reverse_channels:
+                    le_ch_names = [x+self._reverse_channel_suffix for x in self._meas_chs]
+                    ind_offset = len(le_ch_names)
+                    for m, cur_meas_ch in enumerate(le_ch_names):
+                        grp_meas.create_dataset(cur_meas_ch, data=np.hstack([m+ind_offset]), maxshape=(None,))
+                        self._meas_chs.append(cur_meas_ch)
 
-                if len(param_sizes) == 0:
-                    self._datapkt_size = 1
-                else:
-                    self._datapkt_size = np.prod(list(param_sizes))
-
-                data_array_shape = [x[1].size for x in sweep_vars] + list(param_sizes)
-                arr_size = int(np.prod(data_array_shape))
-                arr = np.zeros((arr_size, len(data_pkt['data'].keys())))
+                arr_size = int(np.prod(np.array(self._data_array_shape, dtype=np.int64)))
+                self._num_cols = len(self._meas_chs)
+                arr = np.zeros((arr_size, self._num_cols))
                 arr[:] = np.nan
-                self._dset = self._hf.create_dataset("data", data=arr, compression="gzip")
+                #TODO: Change this if allowing resizing on other sweeping axes...
+                max_shape = list(arr.shape)
+                max_shape[0] = None
+                self._dset = self._hf.create_dataset("data", data=arr, compression="gzip", maxshape=max_shape)
                 self._dset_ind = 0
                 #Time-stamps (usually length 27 bytes)
                 if self.store_timestamps:
                     self._ts_len = len( np.datetime_as_string(np.datetime64(datetime.now()),timezone='UTC').encode('utf-8') )
                     arr = np.array([np.datetime64()]*arr_size, dtype=f'S{self._ts_len}')
-                    self._dsetTS = self._hf.create_dataset("timeStamps", data=arr, compression="gzip")
+                    #TODO: Change this if allowing resizing on other sweeping axes...
+                    max_shape = list(arr.shape)
+                    max_shape[0] = None
+                    self._dsetTS = self._hf.create_dataset("timeStamps", data=arr, compression="gzip", maxshape=max_shape)
                 
                 self._hf.swmr_mode = True
 
-    def push_datapkt(self, data_pkt, sweep_vars):
-        self._init_hdf5(sweep_vars, data_pkt)
+    def push_datapkt(self, data_pkt, sweep_vars, sweepEx = {}, dset_ind = -1):
+        self._init_hdf5(sweep_vars, data_pkt, sweepEx)
 
-        cur_data = np.vstack([data_pkt['data'][x].flatten() for x in self._meas_chs]).T
-        self._dset[self._dset_ind*self._datapkt_size : (self._dset_ind+1)*self._datapkt_size] = cur_data
+        cur_shape = self._dset.shape
+        leSize, params, leShape = self._get_dataset_sizes(sweep_vars, data_pkt)
+        proposed_arr_size = int(np.prod(leShape))
+        if proposed_arr_size > cur_shape[0]:
+            assert len(sweepEx) == 0, "Many-one sweeps are not supported with array resizing at the moment."
+            if len(sweep_vars) > 1:
+                for m, cur_sweep_var in enumerate(sweep_vars[1:]):
+                    assert cur_sweep_var[1].size == self._data_array_shape[m+1], "Array resizing is only supported for the left-most sweeping variable for now."
+            self._dset.resize( (proposed_arr_size, self._num_cols) )
+            #
+            self._hf['parameters'][sweep_vars[0][0].Name].resize((sweep_vars[0][1].size+1,))
+            self._hf['parameters'][sweep_vars[0][0].Name][1:] = sweep_vars[0][1]    #TODO: Can optimise by not writing previous values here?
+            #
+            if self.store_timestamps:
+                ts_shape = self._dsetTS.shape
+                self._dsetTS.resize((proposed_arr_size,))
+
+        if dset_ind >= 0:
+            cur_dset_ind = dset_ind
+        else:
+            cur_dset_ind = self._dset_ind
+        #
+        #Doing the columns individually - e.g. as required when using reverse for example as only some channels get filled/populated at a time...
+        for x in data_pkt['data']:
+            cur_data = data_pkt['data'][x].flatten()
+            assert x in self._meas_chs, f"The channel {x} was not present when initialising the FileIOWriter object. Cannot write this data as the storage has not been properly initialised."
+            self._dset[cur_dset_ind*self._datapkt_size : (cur_dset_ind+1)*self._datapkt_size, self._meas_chs.index(x)] = cur_data
+        #
         if self.store_timestamps:
+            #TODO: When reverse-sweeping, the time-stamps are just overwritten as they don't go to the granularity of dependent variables? Fix this with some changes?
             #Trick taken from here: https://stackoverflow.com/questions/68443753/datetime-storing-in-hd5-database
-            cur_times = [np.datetime64(datetime.now())] * cur_data.shape[0]
-            utc_strs = np.array( [np.datetime_as_string(n,timezone='UTC').encode('utf-8') for n in cur_times] )
-            self._dsetTS[self._dset_ind*self._datapkt_size : (self._dset_ind+1)*self._datapkt_size] = utc_strs
+            utc_strs = np.repeat(np.datetime_as_string(np.datetime64(datetime.now()),timezone='UTC').encode('utf-8'), cur_data.shape[0])
+            self._dsetTS[cur_dset_ind*self._datapkt_size : (cur_dset_ind+1)*self._datapkt_size] = utc_strs
+            self._dsetTS.flush()
         self._dset_ind += 1
         self._dset.flush()
     
+    def query_data(self, slice_indices):
+        #Given as a LIST of arrays
+        assert len(slice_indices) <= len(self._data_array_shape), f"Number of slice indices {len(slice_indices)} must correspond to shape of stored array {len(self._data_array_shape)}"
+        #Pad out remaining indices as [:]...
+        if len(slice_indices) < len(self._data_array_shape):
+            slice_indices = list(slice_indices)
+            for m in range(len(slice_indices), len(self._data_array_shape)):
+                slice_indices += [np.arange(self._data_array_shape[m])]
+
+        #Doing this as ravel_multi_index is too primitive...
+        data_inds = np.array([])
+        for m in range(len(slice_indices)-1,-1,-1):
+            if m == len(slice_indices)-1:
+                fac = 1
+                data_inds = np.array(slice_indices[m])
+            else:
+                fac = np.prod(self._data_array_shape[m+1:])
+                data_inds = [fac*np.array(slice_indices[m])+x for x in data_inds]
+                data_inds = np.ndarray.flatten(np.array(data_inds))
+
+        #data_inds = np.ravel_multi_index(slice_indices, self._data_array_shape)
+        data_inds = np.sort(data_inds)
+        ret_data = self._dset[data_inds]    #Second index = #columns or #dep_params
+        return ret_data.reshape(tuple([np.array(x).size for x in slice_indices]+[ret_data.shape[1]]))
+
     def close(self):
         if self._hf:
             self._hf.close()
             self._hf = None
+            self._data_array_shape = None
+            self._meas_chs = []
+
+    @staticmethod
+    def write_file_direct(filepath, data_array, param_names, param_vals, dep_param_names, **kwargs):
+        #TODO: Add support for time-stamps and one-many indexing...
+        assert isinstance(param_names, list), "Argument param_names must be a list of strings corresponding to each independent sweeping/slicing parameter."
+        assert isinstance(param_vals, list), "Argument param_names must be a list of numpy arrays corresponding to the values taken by each independent sweeping/slicing parameter."
+        assert len(param_names) == len(param_vals), "Number of param_names must match number of param_vals."
+        assert isinstance(data_array, np.ndarray), "Argument data_array must be a valid numpy array."
+        assert len(data_array.shape) == len(param_names)+1, "Number of dimensions of data_array must match number of param_names plus 1."
+        for m in range(len(param_names)):
+            assert isinstance(param_vals[m], np.ndarray), f"Argument param_vals must be a list of numpy-arrays, index {m} fails this."
+            assert len(param_vals[m].shape) == 1, "Argument param_vals must be a list of 1D numpy-arrays, index {m} fails this."
+        for m, val in enumerate(data_array.shape):
+            if m == len(param_vals):
+                assert len(dep_param_names) == val, "Size of last dimension in data_array must match number of dep_param_names."
+                break
+            assert param_vals[m].size == val, f"Dimension {m} in data_array does not match size of array {m} in param_vals (i.e. {param_names[m]})."
+
+        if os.path.exists(filepath):
+            os.remove(filepath)
+        hf = h5py.File(filepath, 'a', libver='latest')
+        grp_params = hf.create_group('parameters')
+        for m in range(len(param_names)):
+            grp_params.create_dataset(param_names[m], data=np.hstack([m,param_vals[m]]))
+        grp_meas = hf.create_group('measurements')
+        for m in range(len(dep_param_names)):
+            grp_meas.create_dataset(dep_param_names[m], data=np.hstack([m]))
+        arr_size = int(np.prod(data_array.shape)/data_array.shape[-1])
+        hf.create_dataset("data", data=data_array.reshape((arr_size, len(dep_param_names))), compression="gzip")
+        hf.close()
 
 class FileIOReader:
     def __init__(self, filepath):
         self.file_path = filepath
         self.folder_path = os.path.dirname(filepath)
-        self.hdf5_file = h5py.File(filepath, 'r', libver='latest', swmr=True)
+        self.hdf5_file = h5py.File(filepath, 'r', libver='latest', swmr=True, locking=False)
         self.dset = self.hdf5_file["data"]
         if 'timeStamps' in self.hdf5_file:
             self.dsetTS = self.hdf5_file["timeStamps"]
@@ -107,6 +224,19 @@ class FileIOReader:
         for cur_key in self.hdf5_file["measurements"].keys():
             cur_ind = self.hdf5_file["measurements"][cur_key][0]
             self.dep_params[cur_ind] = cur_key
+
+        #Extract the param_many_one_maps if any exist:
+        if 'param_many_one_maps' in self.hdf5_file:
+            self.param_many_one_maps = {}
+            vMaps = self.hdf5_file['param_many_one_maps']
+            for cur_mVar in vMaps:
+                var_names = [None]*len(vMaps[cur_mVar])
+                var_vals = [None]*len(vMaps[cur_mVar])
+                for cur_var in vMaps[cur_mVar]:
+                    cur_ind = int(vMaps[cur_mVar][cur_var][0])
+                    var_names[cur_ind] = cur_var
+                    var_vals[cur_ind] = vMaps[cur_mVar][cur_var][1:]
+                self.param_many_one_maps[cur_mVar] = {'param_names' : var_names, 'param_vals' : var_vals}
 
         temp_param_names = self.param_names[:]
         self.param_vals = [None]*len(temp_param_names) 
@@ -209,8 +339,7 @@ class FileIODirectory:
 
         #Correct for the arbitrary nature of the folder order given by: os.walk
         if no_file_index:
-            pass
-            #print("Running FileIODirectory on files generated in legacy version of SQDToolz may cause the files to load to be in a mixed order.")
+            print("Running FileIODirectory on files generated in legacy version of SQDToolz may cause the files to load to be in a mixed order.")
         else:
             cur_files = sorted(cur_files, key=lambda x: x[3])
         self.folders = [x[4] for x in cur_files]
@@ -268,9 +397,18 @@ class FileIODirectory:
                 cur_arrays += [cur_file[0].get_numpy_array()]
             cur_data = np.concatenate(cur_arrays)
 
+            #Process time-stamps (assuming that if the first file supports it, then the remaining shall as well...)
+            if cur_file[0].dsetTS is not None:
+                cur_arrays_ts = [cur_file[0].get_time_stamps() for cur_file in cur_files]
+                self._ts_valid = True
+            else:
+                self._ts_valid = False
+            cur_arrays_ts = np.concatenate(cur_arrays_ts)
+
             self.param_names = cur_param_names_outer + cur_param_names_inner
             self.param_vals = self._cur_param_vals_outer + cur_param_vals_inner
             self._cur_data = cur_data.reshape(tuple( [x.size for x in self.param_vals] + [len(self.dep_params)] ))
+            self._cur_data_ts = cur_arrays_ts.reshape(tuple( [x.size for x in self.param_vals] ))
         else:
             #TIME STAMPS ARE CURRENTLY UNSUPPORTED FOR NON-UNIFORM INDEXING
             #TODO: Give support for time-stamps in non-uniform indexing...
@@ -324,3 +462,78 @@ class FileIODirectory:
         else:
             return ret_dict
 
+    def get_time_stamps(self):
+        assert self._ts_valid, "Time-stamps are not present or supported for this directory."
+        return self._cur_data_ts
+
+    def get_rects_from_nonuniform_index(self, second_axis_param, slicing_indices_dict, non_uniform_on_x = True):
+        assert self.uniform_indices.count(False) == 1, "This function only supports 1 nonuniform index."
+        axis1_index = self.uniform_indices.index(False) - len(self.param_vals)
+
+        slicing_indices = [None]*len(self.param_names)
+        for cur_ind, cur_name in enumerate(self.param_names):
+            if not self.uniform_indices[cur_ind]:
+                continue    #This is the axis...
+            if cur_name == second_axis_param:
+                axis2_index = cur_ind
+            if cur_name in slicing_indices_dict:
+                slicing_indices[cur_ind] = slicing_indices_dict.pop(cur_name)
+        
+        assert axis2_index < len(self.param_vals), "If the second axis is not one of those listed in param_names, then it is simply isolating one non-uniform dataset; just use normal Python array slicing and pcolor."
+
+        outer_slicer = []
+        for x in slicing_indices[:len(self.param_vals)]:
+            if x == None:
+                outer_slicer += [np.s_[:]]
+            else:
+                outer_slicer += [x]
+        rec_data = self._cur_data[tuple(outer_slicer)]
+
+        x_vals = [x['param_vals'][axis1_index] for x in rec_data]
+        y_vals = self.param_vals[axis2_index]
+        
+        y_order = np.argsort(y_vals)
+        y_vals = y_vals[y_order]
+        rec_data = rec_data[y_order]
+
+        inner_slicer = []
+        for x in slicing_indices[len(self.param_vals):]:
+            if x == None:
+                inner_slicer += [np.s_[:]]
+            else:
+                inner_slicer += [x]
+        inner_slicer += [np.s_[:]]  #This is slicing across all measurement channels
+        x_datas = [x['data'][tuple(inner_slicer)] for x in rec_data]
+
+        dys = y_vals[1:]-y_vals[:-1]
+        y_coords = dys*0.5+y_vals[:-1]
+        min_dy = np.min(dys)*0.5
+        y_coords = np.concatenate([[y_vals[0]-min_dy],y_coords,[y_vals[-1]+min_dy]])
+
+        verts = []
+        data_values = []
+        for ind, x_data in enumerate(x_datas):
+            cur_x_vals = x_vals[ind]
+            x_order = np.argsort(x_vals[ind])
+            
+            cur_x_vals = cur_x_vals[x_order]
+            data_values += [x_data[x_order]]
+
+            dxs = cur_x_vals[1:]-cur_x_vals[:-1]
+            x_coords = dxs*0.5+cur_x_vals[:-1]
+            min_dx = np.min(dxs)*0.5
+            x_coords = np.concatenate([[cur_x_vals[0]-min_dx],x_coords,[cur_x_vals[-1]+min_dx]])
+
+            for cur_x_ind in range(cur_x_vals.size):
+                if non_uniform_on_x:
+                    verts += [
+                        [ [x_coords[cur_x_ind], y_coords[ind]], [x_coords[cur_x_ind+1], y_coords[ind]], [x_coords[cur_x_ind+1], y_coords[ind+1]], [x_coords[cur_x_ind], y_coords[ind+1]] ]
+                        ]
+                else:
+                    verts += [
+                        [ [y_coords[ind], x_coords[cur_x_ind]], [y_coords[ind], x_coords[cur_x_ind+1]], [y_coords[ind+1], x_coords[cur_x_ind+1]], [y_coords[ind+1], x_coords[cur_x_ind]] ]
+                        ]
+        verts = np.array(verts)
+        pc = matplotlib.collections.PolyCollection(verts)
+        z_vals = np.vstack(data_values)
+        return FileIODirectory.plt_object(pc, z_vals)
