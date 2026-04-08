@@ -12,7 +12,7 @@ There are additionally UI elements present to make it easy to view data generate
 
 The basic requirements are:
 
-- H5PY 3.1.0 - later versions have a file locking issue when using SWMR mode
+- H5PY 3.16.0 - later versions have a file locking issue when using SWMR mode
 - NumPy/SciPy - used in the data processing
 - Matplotlib - in the older version, this is the actual viewer, while in the newer version it is just there for the colour schemes...
 
